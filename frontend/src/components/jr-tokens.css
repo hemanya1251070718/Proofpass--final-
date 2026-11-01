@@ -767,6 +767,65 @@
   border-radius: 50%;
 }
 
+/* WP7: Animated Dashed Route Polyline */
+.jr-route {
+  stroke-dasharray: 8 6;
+  animation: jr-dash 1.2s linear infinite;
+}
+
+@keyframes jr-dash {
+  to {
+    stroke-dashoffset: -28px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jr-route {
+    animation: none;
+  }
+}
+
+/* WP7: Transit HUD Crossfade */
+.jr-hud-crossfade {
+  animation: jr-hud-fade 0.2s var(--jr-ease);
+}
+
+@keyframes jr-hud-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* WP7: Marker Discipline & Inner Pop-in (Rule 1.3 & Rule 1.7) */
+.radar-clean-pin {
+  animation: jr-pin-pop 0.22s var(--jr-ease);
+  transition: transform 0.16s var(--jr-ease), box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+@keyframes jr-pin-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.radar-clean-pin .pin-expanded-label {
+  transition: opacity 120ms var(--jr-ease), transform 120ms var(--jr-ease);
+}
+
+.radar-clean-pin.active-pin {
+  box-shadow: 0 0 0 4px rgba(232, 128, 63, 0.4), 0 8px 28px rgba(0, 0, 0, 0.95);
+}
+
 /* Global Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   *,

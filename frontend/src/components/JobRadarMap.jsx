@@ -172,6 +172,8 @@ export default function JobRadarMap() {
   const markersLayerRef = useRef(null)
   const sezLayerRef = useRef(null)
   const transitPolylineRef = useRef(null)
+  const osrmCacheRef = useRef(new Map())
+  const abortControllerRef = useRef(null)
 
   // Close modals on Escape key
   useEffect(() => {
@@ -395,44 +397,80 @@ export default function JobRadarMap() {
     return () => clearTimeout(timer)
   }, [handleDetectLocation])
 
-  // ── AUTHENTIC OSRM ROAD ROUTING SERVICE ─────────────────────────────────
-  // Queries Open Source Routing Machine for real turn-by-turn road polyline & drive time
+  // ── AUTHENTIC OSRM ROAD ROUTING SERVICE (WP7) ──────────────────────────
+  // Debounced ~400ms, abortable via AbortController, cached by origin coords -> compId
   useEffect(() => {
-    let isCancelled = false
-
-    async function traceOsrmRoute() {
-      if (perspective !== 'candidate' || !selectedCompany || selectedCompany.workMode === 'Remote') {
-        setRoadRouteData({ distanceKm: null, durationMin: null, isRoadRoute: false })
-        if (transitPolylineRef.current && mapInstanceRef.current) {
-          mapInstanceRef.current.removeLayer(transitPolylineRef.current)
-          transitPolylineRef.current = null
-        }
-        return
+    if (perspective !== 'candidate' || !selectedCompany || selectedCompany.workMode === 'Remote') {
+      setRoadRouteData({ distanceKm: null, durationMin: null, isRoadRoute: false })
+      if (transitPolylineRef.current && mapInstanceRef.current) {
+        mapInstanceRef.current.removeLayer(transitPolylineRef.current)
+        transitPolylineRef.current = null
       }
+      return
+    }
 
-      const userLat = userCoords.lat
-      const userLng = userCoords.lng
-      const compLat = selectedCompany.coordinates.lat
-      const compLng = selectedCompany.coordinates.lng
+    // Cancel any previous in-flight OSRM request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
+    const userLat = userCoords.lat
+    const userLng = userCoords.lng
+    const compLat = selectedCompany.coordinates.lat
+    const compLng = selectedCompany.coordinates.lng
+    const cacheKey = `${userLat.toFixed(4)},${userLng.toFixed(4)}->${selectedCompany.id}`
+
+    // Check in-memory cache first to avoid redundant network calls
+    if (osrmCacheRef.current.has(cacheKey)) {
+      const cached = osrmCacheRef.current.get(cacheKey)
+      setRoadRouteData({
+        distanceKm: cached.distanceKm,
+        durationMin: cached.durationMin,
+        isRoadRoute: cached.isRoadRoute
+      })
+      if (mapInstanceRef.current) {
+        if (transitPolylineRef.current) {
+          mapInstanceRef.current.removeLayer(transitPolylineRef.current)
+        }
+        const polyline = L.polyline(cached.roadLatLngs, {
+          color: '#e8803f',
+          weight: 5,
+          className: 'jr-route',
+          opacity: 0.95
+        }).addTo(mapInstanceRef.current)
+        transitPolylineRef.current = polyline
+      }
+      return
+    }
+
+    // Debounce OSRM fetch ~400ms to avoid hammering during fast clicks or repositioning
+    const timerId = setTimeout(async () => {
       try {
         const url = `https://router.project-osrm.org/route/v1/driving/${userLng},${userLat};${compLng},${compLat}?overview=full&geometries=geojson`
-        const res = await fetch(url)
+        const res = await fetch(url, { signal: controller.signal })
         if (res.ok) {
           const data = await res.json()
-          if (!isCancelled && data.routes && data.routes.length > 0) {
+          if (!controller.signal.aborted && data.routes && data.routes.length > 0) {
             const route = data.routes[0]
             const roadDistKm = Number((route.distance / 1000).toFixed(1))
             const roadDurMin = Math.max(1, Math.round(route.duration / 60))
+            const roadLatLngs = route.geometry.coordinates.map((coord) => [coord[1], coord[0]])
+
+            const result = {
+              distanceKm: roadDistKm,
+              durationMin: roadDurMin,
+              isRoadRoute: true,
+              roadLatLngs
+            }
+            osrmCacheRef.current.set(cacheKey, result)
 
             setRoadRouteData({
               distanceKm: roadDistKm,
               durationMin: roadDurMin,
               isRoadRoute: true
             })
-
-            // Coordinates in GeoJSON are [lng, lat]; Leaflet expects [lat, lng]
-            const roadLatLngs = route.geometry.coordinates.map((coord) => [coord[1], coord[0]])
 
             if (mapInstanceRef.current) {
               if (transitPolylineRef.current) {
@@ -441,7 +479,7 @@ export default function JobRadarMap() {
               const polyline = L.polyline(roadLatLngs, {
                 color: '#e8803f',
                 weight: 5,
-                className: 'transit-route-line',
+                className: 'jr-route',
                 opacity: 0.95
               }).addTo(mapInstanceRef.current)
               transitPolylineRef.current = polyline
@@ -450,11 +488,13 @@ export default function JobRadarMap() {
           }
         }
       } catch (err) {
-        console.warn('OSRM routing API unreachable, falling back to direct corridor:', err)
+        if (err.name !== 'AbortError') {
+          console.warn('OSRM routing fallback to driving estimate:', err)
+        }
       }
 
-      // Fallback straight-line corridor if OSRM is offline
-      if (!isCancelled && mapInstanceRef.current) {
+      // Fallback straight corridor if OSRM is offline or non-200
+      if (!controller.signal.aborted && mapInstanceRef.current) {
         if (transitPolylineRef.current) {
           mapInstanceRef.current.removeLayer(transitPolylineRef.current)
         }
@@ -466,7 +506,7 @@ export default function JobRadarMap() {
         const polyline = L.polyline(straightPoints, {
           color: '#e8803f',
           weight: 4,
-          className: 'transit-route-line',
+          className: 'jr-route',
           opacity: 0.85
         }).addTo(mapInstanceRef.current)
         transitPolylineRef.current = polyline
@@ -478,14 +518,13 @@ export default function JobRadarMap() {
           isRoadRoute: false
         })
       }
-    }
-
-    traceOsrmRoute()
+    }, 400)
 
     return () => {
-      isCancelled = true
+      clearTimeout(timerId)
+      controller.abort()
     }
-  }, [userCoords, selectedCompany, perspective])
+  }, [userCoords.lat, userCoords.lng, selectedCompany?.id, perspective])
 
   // WP4: ResizeObserver debounced ~100ms calling map.invalidateSize({ animate: false })
   useEffect(() => {
@@ -1007,9 +1046,9 @@ export default function JobRadarMap() {
             {/* Leaflet Canvas Element */}
             <div ref={mapContainerRef} className="leaflet-map-element" />
 
-            {/* Bottom Floating Dynamic Transit HUD (OSRM Powered) */}
+            {/* Bottom Floating Dynamic Transit HUD (OSRM Powered with WP7 Glass & Fallback) */}
             {perspective === 'candidate' && selectedCompany && selectedCompany.workMode !== 'Remote' && (
-              <div className="radar-floating-transit-hud">
+              <div key={selectedCompany.id} className="radar-floating-transit-hud jr-glass jr-hud-crossfade">
                 <div className="transit-left">
                   <div className="transit-title">
                     <span className="transit-badge-road">
@@ -1018,11 +1057,11 @@ export default function JobRadarMap() {
                     <strong>{selectedCompany.name}</strong>
                   </div>
                   <div className="transit-metrics">
-                    <span className="transit-time-highlight">
-                      ⏱️ {roadRouteData.durationMin || selectedCompany.transit?.travelTimeMinutes || 20}m commute
+                    <span className="transit-time-highlight jr-tabular">
+                      ⏱️ {roadRouteData.durationMin ? `${roadRouteData.durationMin}m commute` : `~${selectedCompany.transit?.travelTimeMinutes || 18}m driving estimate`}
                     </span>
                     <span className="transit-sep">·</span>
-                    <span className="transit-dist">
+                    <span className="transit-dist jr-tabular">
                       📍 {roadRouteData.distanceKm || selectedCompany.distanceKm} km from {userCoords.name?.split('·')[1]?.trim() || userCoords.name?.split('(')[0]?.trim() || 'Origin'}
                     </span>
                     <span className="transit-sep">·</span>
