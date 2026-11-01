@@ -46,6 +46,82 @@ export const SAMPLE_TECH_HUBS = {
   }
 }
 
+// ── POPULAR PUNE COMMUTE ORIGINS & STUDENT CAMPUSES ──────────────────────────
+export const PUNE_NEIGHBORHOOD_ORIGINS = [
+  {
+    id: 'vit-pune',
+    name: 'VIT Pune Campus (Bibwewadi)',
+    city: 'Pune',
+    lat: 18.4636,
+    lng: 73.8682,
+    neighborhood: 'Bibwewadi / Upper Indira Nagar',
+    description: 'Vishwakarma Institute of Technology main campus'
+  },
+  {
+    id: 'kothrud',
+    name: 'Kothrud / MIT World Peace Campus',
+    city: 'Pune',
+    lat: 18.5074,
+    lng: 73.8077,
+    neighborhood: 'Kothrud / Karve Road',
+    description: 'West Pune student and engineering college hub'
+  },
+  {
+    id: 'shivajinagar',
+    name: 'Shivajinagar / COEP / FC Road',
+    city: 'Pune',
+    lat: 18.5308,
+    lng: 73.8475,
+    neighborhood: 'Central Pune Interchange',
+    description: 'Central educational belt near COEP and Shivajinagar Metro'
+  },
+  {
+    id: 'hinjawadi-phase1',
+    name: 'Hinjawadi Phase 1 (Hostels & PGs)',
+    city: 'Pune',
+    lat: 18.5913,
+    lng: 73.7389,
+    neighborhood: 'Hinjawadi IT Corridor',
+    description: 'Hinjawadi IT cluster student residence belt'
+  },
+  {
+    id: 'baner',
+    name: 'Baner / Balewadi High Street',
+    city: 'Pune',
+    lat: 18.5590,
+    lng: 73.7868,
+    neighborhood: 'Baner / Aundh Tech Zone',
+    description: 'Western corridor near Veritas and Balewadi High St'
+  },
+  {
+    id: 'viman-nagar',
+    name: 'Viman Nagar / Kharadi Knowledge Park',
+    city: 'Pune',
+    lat: 18.5679,
+    lng: 73.9143,
+    neighborhood: 'East Pune Tech Belt',
+    description: 'Proximity to EON Free Zone, Barclays, and Airport Road'
+  },
+  {
+    id: 'wakad',
+    name: 'Wakad / Pimpri-Chinchwad',
+    city: 'Pune',
+    lat: 18.5987,
+    lng: 73.7707,
+    neighborhood: 'PCMC North-West',
+    description: 'North-West Pune residential hub'
+  },
+  {
+    id: 'hadapsar',
+    name: 'Hadapsar / Magarpatta Cybercity',
+    city: 'Pune',
+    lat: 18.5147,
+    lng: 73.9262,
+    neighborhood: 'Magarpatta South-East',
+    description: 'Direct access to Mastercard and SP Infocity'
+  }
+]
+
 // ── PUNE SEZ & TECH PARK CORRIDORS (GEOFENCING POLYGONS) ──────────────────────
 export const PUNE_SEZ_CORRIDORS = [
   {

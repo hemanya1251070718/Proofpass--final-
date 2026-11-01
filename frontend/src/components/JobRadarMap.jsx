@@ -22,7 +22,8 @@ import {
   SAMPLE_TECH_HUBS,
   PUNE_SEZ_CORRIDORS,
   MOCK_REPO_EVIDENCE,
-  VERIFIED_TALENT_PROFILES
+  VERIFIED_TALENT_PROFILES,
+  PUNE_NEIGHBORHOOD_ORIGINS
 } from '../data/radarCompanies.js'
 import '../radar.css'
 
@@ -112,7 +113,8 @@ export default function JobRadarMap() {
   // Scope: 'city' (In My City) vs 'global' (Anywhere - Best Skill Match)
   const [browsingScope, setBrowsingScope] = useState('city')
   const [selectedHub, setSelectedHub] = useState('pune')
-  const [userCoords, setUserCoords] = useState(SAMPLE_TECH_HUBS.pune)
+  const [userCoords, setUserCoords] = useState(PUNE_NEIGHBORHOOD_ORIGINS[0] || SAMPLE_TECH_HUBS.pune)
+  const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [radiusFilter, setRadiusFilter] = useState('all') // 'all', '5', '15', '30'
   const [workModeFilter, setWorkModeFilter] = useState('ALL') // 'ALL', 'Onsite', 'Hybrid', 'Remote'
   
@@ -338,9 +340,9 @@ export default function JobRadarMap() {
     // 5. Render Markers depending on Perspective (Candidate vs Recruiter)
     markersLayer.clearLayers()
 
-    // Add User Current Location Blip
+    // Add User Current Location Blip (Draggable for instant manual precision)
     const userPinHtml = `
-      <div class="radar-user-map-pin" title="${perspective === 'candidate' ? 'Your Current Location' : 'Your Corporate Office HQ'}">
+      <div class="radar-user-map-pin" title="${perspective === 'candidate' ? 'Your Commute Origin (Drag or click map to change)' : 'Your Corporate Office HQ'}">
         <div class="user-pin-core"></div>
         <div class="user-pin-ring"></div>
       </div>
@@ -348,10 +350,43 @@ export default function JobRadarMap() {
     const userIcon = L.divIcon({
       html: userPinHtml,
       className: 'user-marker-container',
-      iconSize: [26, 26],
-      iconAnchor: [13, 13]
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
     })
-    L.marker([userCoords.lat, userCoords.lng], { icon: userIcon }).addTo(markersLayer)
+    const userMarker = L.marker([userCoords.lat, userCoords.lng], {
+      icon: userIcon,
+      draggable: true
+    }).addTo(markersLayer)
+
+    userMarker.bindTooltip(
+      `📍 <strong>${userCoords.name || 'Your Origin'}</strong><br/><span style="color: #e8803f; font-size: 0.72rem;">Drag pin or click map to reposition</span>`,
+      { permanent: false, direction: 'top' }
+    )
+
+    userMarker.on('dragend', (e) => {
+      const p = e.target.getLatLng()
+      setUserCoords({
+        name: `Custom Origin (${p.lat.toFixed(3)}, ${p.lng.toFixed(3)})`,
+        city: 'Pune',
+        lat: Number(p.lat.toFixed(5)),
+        lng: Number(p.lng.toFixed(5)),
+        zoom: 14
+      })
+    })
+
+    // Click anywhere on map background to set commute origin directly
+    map.off('click')
+    map.on('click', (e) => {
+      if (e.originalEvent && (e.originalEvent.target.classList.contains('leaflet-container') || e.originalEvent.target.tagName === 'path')) {
+        setUserCoords({
+          name: `Pinned (${e.latlng.lat.toFixed(3)}, ${e.latlng.lng.toFixed(3)})`,
+          city: 'Pune',
+          lat: Number(e.latlng.lat.toFixed(5)),
+          lng: Number(e.latlng.lng.toFixed(5)),
+          zoom: 14
+        })
+      }
+    })
 
     if (perspective === 'candidate') {
       // CANDIDATE VIEW: Render Company Beacons
@@ -469,34 +504,68 @@ export default function JobRadarMap() {
     }
   }
 
-  // Detect live browser GPS location
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.')
-      return
-    }
+  // Detect live browser GPS location with Wi-Fi triangulation + IP network fallback
+  const handleDetectLocation = async () => {
     setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLocating(false)
-        const coords = {
-          name: 'Your Real GPS Coordinates',
-          city: 'Pune',
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          zoom: 13
+
+    // Strategy 1: High-Accuracy HTML5 Geolocation (Wi-Fi BSSID / GPS)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocating(false)
+          const acc = Math.round(pos.coords.accuracy || 0)
+          const coords = {
+            name: `Live GPS (±${acc}m accuracy)`,
+            city: 'Pune',
+            lat: Number(pos.coords.latitude.toFixed(5)),
+            lng: Number(pos.coords.longitude.toFixed(5)),
+            zoom: 14
+          }
+          setUserCoords(coords)
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.flyTo([coords.lat, coords.lng], 14, { duration: 1.0 })
+          }
+        },
+        async (geoErr) => {
+          console.warn('HTML5 Geolocation unavailable or blocked:', geoErr?.message)
+          // Strategy 2: Network IP Geolocation Fallback
+          try {
+            const res = await fetch('https://ipapi.co/json/')
+            if (res.ok) {
+              const data = await res.json()
+              if (data.latitude && data.longitude) {
+                setLocating(false)
+                const coords = {
+                  name: `Network Location (${data.city || 'Pune'})`,
+                  city: data.city || 'Pune',
+                  lat: Number(data.latitude.toFixed(5)),
+                  lng: Number(data.longitude.toFixed(5)),
+                  zoom: 13.5
+                }
+                setUserCoords(coords)
+                if (mapInstanceRef.current) {
+                  mapInstanceRef.current.flyTo([coords.lat, coords.lng], 13.5, { duration: 1.0 })
+                }
+                return
+              }
+            }
+          } catch (netErr) {
+            console.warn('Network IP fallback failed:', netErr)
+          }
+
+          setLocating(false)
+          setShowLocationPicker(true)
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 12000,
+          maximumAge: 0
         }
-        setUserCoords(coords)
-        if (mapInstanceRef.current) {
-          mapInstanceRef.current.flyTo([pos.coords.latitude, pos.coords.longitude], 13.5)
-        }
-      },
-      () => {
-        setLocating(false)
-        alert('Could not retrieve GPS coordinates. Defaulting to Pune Tech Hub.')
-      },
-      { timeout: 8000 }
-    )
+      )
+    } else {
+      setLocating(false)
+      setShowLocationPicker(true)
+    }
   }
 
   // Save custom enterprise API key
@@ -622,8 +691,21 @@ export default function JobRadarMap() {
               className="radar-locate-btn"
               onClick={handleDetectLocation}
               disabled={locating}
+              title="Detect live GPS coordinates with Wi-Fi triangulation"
             >
-              {locating ? 'Scanning GPS...' : '📍 Detect My Location'}
+              {locating ? 'Scanning GPS...' : '📍 Detect Live GPS'}
+            </button>
+
+            <button
+              type="button"
+              className="b sm g"
+              onClick={() => setShowLocationPicker(true)}
+              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Select your Pune neighborhood, college campus or manual pin"
+            >
+              <span>Origin:</span>
+              <strong style={{ color: '#e8803f' }}>{userCoords.name?.split('(')[0]?.trim() || 'Pune'}</strong>
+              <span>▾</span>
             </button>
 
             <button
@@ -1394,6 +1476,90 @@ export default function JobRadarMap() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* 5. COMMUTE ORIGIN & GPS LOCATION PICKER MODAL */}
+      {showLocationPicker && (
+        <div className="radar-modal-overlay" onClick={() => setShowLocationPicker(false)}>
+          <div className="radar-modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 580 }}>
+            <span className="k m" style={{ color: '#e8803f' }}>COMMUTE ORIGIN & GPS SELECTION</span>
+            <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
+              Set Your Commute Origin
+            </h2>
+            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 14px' }}>
+              Select your exact Pune campus or neighborhood below, or drag the glowing orange marker directly on the live street map to recalculate travel distances.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <span className="radar-label" style={{ display: 'block', marginBottom: '8px' }}>
+                Quick Pune Student Campuses & Residential Hubs:
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
+                {PUNE_NEIGHBORHOOD_ORIGINS.map((orig) => {
+                  const isCurrent = userCoords.lat === orig.lat && userCoords.lng === orig.lng
+                  return (
+                    <button
+                      key={orig.id}
+                      type="button"
+                      className="radar-mode-btn"
+                      style={{
+                        padding: '10px 12px',
+                        textAlign: 'left',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        borderColor: isCurrent ? '#e8803f' : undefined,
+                        background: isCurrent ? 'rgba(232, 128, 63, 0.16)' : undefined
+                      }}
+                      onClick={() => {
+                        setUserCoords(orig)
+                        setShowLocationPicker(false)
+                        if (mapInstanceRef.current) {
+                          mapInstanceRef.current.flyTo([orig.lat, orig.lng], 14, { duration: 0.9 })
+                        }
+                      }}
+                    >
+                      <strong style={{ color: isCurrent ? '#e8803f' : '#fff', fontSize: '0.82rem' }}>
+                        {orig.name}
+                      </strong>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '2px' }}>
+                        {orig.neighborhood}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ background: '#121110', border: '1px solid #2d2b29', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '0.8rem' }}>
+              <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '4px' }}>
+                💡 Tip: You can also drag the orange pin or click anywhere directly on the map!
+              </div>
+              <div style={{ color: 'var(--muted)' }}>
+                Active Origin: <strong style={{ color: '#fff' }}>{userCoords.name}</strong> ({userCoords.lat}, {userCoords.lng})
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                className="b sm"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowLocationPicker(false)
+                  handleDetectLocation()
+                }}
+              >
+                🛰️ Force Re-Scan Live GPS
+              </button>
+              <button
+                type="button"
+                className="b sm g"
+                onClick={() => setShowLocationPicker(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
