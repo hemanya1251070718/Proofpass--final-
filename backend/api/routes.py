@@ -35,11 +35,13 @@ from backend.api.auth import auth_router, get_current_session
 from backend.verification.github_client import parse_github_url
 from backend.api.batch import batch_router
 from backend.api.resume import resume_router
+from backend.api.radar import radar_router
 
 router = APIRouter(prefix="/api/v1", tags=["ProofPass Core"])
 router.include_router(auth_router)
 router.include_router(batch_router)
 router.include_router(resume_router)
+router.include_router(radar_router)
 
 
 @router.get("/health", response_model=HealthResponse)

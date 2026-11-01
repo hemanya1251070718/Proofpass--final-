@@ -870,3 +870,69 @@
   background: rgba(56, 189, 248, 0.06);
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
 }
+
+
+/* --------------------------------------------------------------------------
+   ENTERPRISE SEARCH & DYNAMIC ENTITY LOGO STYLES
+   -------------------------------------------------------------------------- */
+.radar-search-container {
+  display: flex;
+  align-items: center;
+  background: #11100f;
+  border: 1px solid var(--line, #2d2b29);
+  border-radius: 6px;
+  padding: 6px 14px;
+  gap: 10px;
+  margin-top: 10px;
+  transition: all 0.2s ease;
+}
+
+.radar-search-container:focus-within {
+  border-color: #e8803f;
+  box-shadow: 0 0 10px rgba(232, 128, 63, 0.25);
+}
+
+.radar-search-icon {
+  font-size: 0.95rem;
+  opacity: 0.7;
+}
+
+.radar-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.86rem;
+  font-family: var(--sans, sans-serif);
+  flex: 1;
+}
+
+.radar-search-input::placeholder {
+  color: var(--muted, #9c958f);
+  font-size: 0.82rem;
+}
+
+.radar-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--muted, #9c958f);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.radar-search-clear:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.radar-entity-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #fff;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
