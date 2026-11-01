@@ -17,6 +17,7 @@ gsap.registerPlugin(ScrollTrigger)
 const Verify = lazy(() => import('./components/Verify.jsx'))
 const ApplicantDashboard = lazy(() => import('./components/ApplicantDashboard.jsx'))
 const Recommendations = lazy(() => import('./components/Recommendations.jsx'))
+const JobRadarMap = lazy(() => import('./components/JobRadarMap.jsx'))
 const Learnings = lazy(() => import('./components/Learnings.jsx'))
 const PassportView = lazy(() => import('./components/PassportView.jsx'))
 const RecruiterDashboard = lazy(() => import('./components/RecruiterDashboard.jsx'))
@@ -385,6 +386,13 @@ function AppShell() {
                 >
                   Recommendations
                 </Link>
+                <Link
+                  to="/radar"
+                  aria-current={pathname === '/radar' ? 'page' : undefined}
+                  onClick={handleMobileNavClick}
+                >
+                  Job Radar
+                </Link>
               </>
             ) : (
               <Link
@@ -553,6 +561,16 @@ function AppShell() {
                 <RequireRole roles="applicant">
                   <ErrorBoundary>
                     <Recommendations />
+                  </ErrorBoundary>
+                </RequireRole>
+              }
+            />
+            <Route
+              path="/radar"
+              element={
+                <RequireRole roles="applicant">
+                  <ErrorBoundary>
+                    <JobRadarMap />
                   </ErrorBoundary>
                 </RequireRole>
               }

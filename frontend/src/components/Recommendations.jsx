@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { listPassports } from '../api/passports.js'
 import { getRecommendedResources } from '../api/recommendations.js'
@@ -88,6 +89,11 @@ export default function Recommendations() {
               <p className="dash-subtitle">
                 Target Role: <strong>{user?.profile?.targetRole || passport?.targetRole || 'Software Engineer'}</strong> · Curated tracks to close evidence gaps and upgrade to Verified.
               </p>
+            </div>
+            <div>
+              <Link to="/radar" className="b sm" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                📡 Proximity Job Radar →
+              </Link>
             </div>
           </div>
         </div>

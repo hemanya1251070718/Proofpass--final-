@@ -1,0 +1,513 @@
+/* ==========================================================================
+   ProofPass - Proximity Job Radar & Mapbox Dark Theme Styling
+   Brand Palette: Burnt Orange (#b54610 / #e8803f), Soft Black, Warm Ivory
+   ========================================================================== */
+
+.radar-page {
+  padding-bottom: 80px;
+}
+
+.radar-header-card {
+  background: var(--card, #1c1b1a);
+  border: 1px solid var(--line, #2d2b29);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.radar-title-group h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 4px 0;
+  color: var(--ink, #faf8f5);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.radar-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-family: var(--mono, monospace);
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  text-transform: uppercase;
+}
+
+.radar-live-dot {
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: radarPulse 1.8s infinite;
+}
+
+@keyframes radarPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+/* Controls & Filter Bar */
+.radar-controls-card {
+  background: var(--card, #1c1b1a);
+  border: 1px solid var(--line, #2d2b29);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.radar-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.radar-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.radar-label {
+  font-size: 0.75rem;
+  font-family: var(--mono, monospace);
+  color: var(--muted, #9c958f);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+
+.radar-pill-btn {
+  background: var(--bg, #141312);
+  border: 1px solid var(--line, #2e2b28);
+  color: var(--muted, #9c958f);
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: var(--sans, sans-serif);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.radar-pill-btn:hover {
+  border-color: #b54610;
+  color: var(--ink, #faf8f5);
+}
+
+.radar-pill-btn.active {
+  background: #b54610;
+  border-color: #b54610;
+  color: #fff;
+  font-weight: 600;
+}
+
+.radar-locate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(181, 70, 16, 0.12);
+  border: 1px solid rgba(181, 70, 16, 0.35);
+  color: #e8803f;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-family: var(--mono, monospace);
+  cursor: pointer;
+}
+
+.radar-locate-btn:hover {
+  background: rgba(181, 70, 16, 0.22);
+}
+
+/* Grid Layout: Map Left + Job Cards Right */
+.radar-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .radar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Map / Radar Canvas Viewport */
+.radar-viewport-container {
+  background: #0f0e0d;
+  border: 1px solid var(--line, #2e2b28);
+  border-radius: 8px;
+  height: 580px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.radar-viewport-header {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.radar-hud-tag {
+  background: rgba(18, 17, 16, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: var(--mono, monospace);
+  font-size: 0.72rem;
+  color: #e8803f;
+  pointer-events: auto;
+}
+
+/* Mapbox GL Map Container */
+.mapbox-canvas-target {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+}
+
+/* High-Tech Radar Canvas (Fallback & Native mode) */
+.radar-screen-canvas {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at center, #1b1917 0%, #0c0b0a 100%);
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.radar-concentric-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed rgba(232, 128, 63, 0.2);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.radar-ring-label {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.65rem;
+  font-family: var(--mono, monospace);
+  color: rgba(232, 128, 63, 0.5);
+}
+
+.radar-crosshair-h {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.radar-crosshair-v {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+}
+
+.radar-sweep-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 290px;
+  height: 290px;
+  transform-origin: top left;
+  background: conic-gradient(from 0deg, rgba(232, 128, 63, 0.35) 0deg, transparent 55deg);
+  border-radius: 100% 0 0 0;
+  pointer-events: none;
+  animation: radarSweep 6s linear infinite;
+}
+
+@keyframes radarSweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.radar-center-blip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  background: #22c55e;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  box-shadow: 0 0 14px #22c55e;
+}
+
+/* Interactive Beacons on Radar */
+.radar-beacon-node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 6;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.radar-beacon-node:hover, .radar-beacon-node.selected {
+  transform: translate(-50%, -50%) scale(1.3);
+  z-index: 20;
+}
+
+.radar-beacon-dot {
+  width: 14px;
+  height: 14px;
+  background: #e8803f;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(232, 128, 63, 0.85);
+  position: relative;
+}
+
+.radar-beacon-dot.high-match {
+  background: #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.9);
+}
+
+.radar-beacon-dot.remote-match {
+  background: #38bdf8;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.9);
+}
+
+.radar-beacon-tooltip {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(18, 17, 16, 0.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line, #383431);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--sans, sans-serif);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.radar-beacon-node:hover .radar-beacon-tooltip,
+.radar-beacon-node.selected .radar-beacon-tooltip {
+  opacity: 1;
+}
+
+/* Company List Sidebar */
+.radar-cards-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 580px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.radar-job-card {
+  background: var(--card, #1c1b1a);
+  border: 1px solid var(--line, #2d2b29);
+  border-radius: 6px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.radar-job-card:hover {
+  border-color: #e8803f;
+  background: var(--card-hover, #242220);
+}
+
+.radar-job-card.active-card {
+  border-color: #e8803f;
+  box-shadow: 0 0 0 1px #e8803f;
+  background: rgba(181, 70, 16, 0.05);
+}
+
+.radar-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.radar-comp-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.radar-logo-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: #282624;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--mono, monospace);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.radar-comp-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink, #faf8f5);
+  margin: 0;
+}
+
+.radar-comp-loc {
+  font-size: 0.75rem;
+  color: var(--muted, #9c958f);
+  margin: 2px 0 0;
+}
+
+.radar-match-badge {
+  font-size: 0.78rem;
+  font-family: var(--mono, monospace);
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(181, 70, 16, 0.15);
+  color: #e8803f;
+  border: 1px solid rgba(181, 70, 16, 0.35);
+}
+
+.radar-match-badge.high {
+  background: rgba(34, 197, 94, 0.14);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.radar-role-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink, #faf8f5);
+  margin: 8px 0 6px;
+}
+
+.radar-stipend-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: var(--muted, #9c958f);
+  margin-bottom: 10px;
+}
+
+.radar-stipend-val {
+  color: #22c55e;
+  font-family: var(--mono, monospace);
+  font-weight: 600;
+}
+
+.radar-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.radar-skill-tag {
+  font-size: 0.72rem;
+  font-family: var(--mono, monospace);
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line, #383431);
+  color: var(--muted, #9c958f);
+}
+
+.radar-skill-tag.verified {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.3);
+  color: #22c55e;
+}
+
+.radar-action-btn {
+  width: 100%;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 1px solid #b54610;
+  background: #b54610;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.radar-action-btn:hover {
+  background: #96380c;
+  border-color: #96380c;
+}
+
+/* Application Confirmation Modal */
+.radar-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.radar-modal-box {
+  background: #181716;
+  border: 1px solid #e8803f;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 480px;
+  padding: 28px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8);
+}
