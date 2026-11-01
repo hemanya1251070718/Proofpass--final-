@@ -1186,7 +1186,7 @@ export default function JobRadarMap() {
                       <div>
                         <div className="cand-title-block">
                           <strong className="cand-codename">{cand.codeName}</strong>
-                          <span className="cand-sha-pill">SHA-256 VALID ✓</span>
+                          <span className="cand-sha-pill">SHA-256 VALID ✓ <small style={{ opacity: 0.8, fontSize: '0.62rem' }}>(Simulated)</small></span>
                         </div>
                         <div className="cand-role-compact">{cand.roleTag}</div>
                         <div className="cand-loc-text">
@@ -1229,6 +1229,28 @@ export default function JobRadarMap() {
                 )
               })
             )}
+
+            {/* WP9: About this data & Footnotes */}
+            <footer className="jr-footnotes" aria-label="About this data">
+              <div className="jr-footnotes__header">
+                <span className="jr-footnotes__badge">DATA TRANSPARENCY</span>
+                <h4 className="jr-footnotes__title">About this data</h4>
+              </div>
+              <ul className="jr-footnotes__list">
+                <li>
+                  <sup className="jr-sup">[1]</sup> <strong>Match calculation:</strong> Computed as <code>(verified candidate skills / required role skills) &times; 100</code> based on linked git repository proof assessments.
+                </li>
+                <li>
+                  <sup className="jr-sup">[2]</sup> <strong>Commute times:</strong> Turn-by-turn driving routing powered by the public <a href="https://router.project-osrm.org/" target="_blank" rel="noopener noreferrer">Project OSRM</a> API over OpenStreetMap roadway geometry. Real-time traffic congestion is not included.
+                </li>
+                <li>
+                  <sup className="jr-sup">[3]</sup> <strong>Corporate logos:</strong> Deterministic high-resolution brand SVGs with Google Favicon (128px) fallback.
+                </li>
+                <li>
+                  <sup className="jr-sup">[4]</sup> <strong>Cryptographic verification:</strong> <span className="jr-simulated-tag">Demo data / Simulated</span> SHA-256 git blame verification and proof stamping demonstration for hackathon evaluation.
+                </li>
+              </ul>
+            </footer>
           </div>
         </div>
       </div>
@@ -1501,7 +1523,7 @@ export default function JobRadarMap() {
         open={Boolean(proofGapItem)}
         onClose={() => setProofGapItem(null)}
         placement="right"
-        badge="CRYPTOGRAPHIC PROOF-GAP"
+        badge="CRYPTOGRAPHIC PROOF-GAP · DEMO EVIDENCE"
         title={`Bridge Skill Gap: ${proofGapItem?.skill || ''}`}
       >
         {proofGapItem && (
@@ -1518,8 +1540,9 @@ export default function JobRadarMap() {
               <div style={{ color: '#fff', fontWeight: 600, marginBottom: '6px' }}>
                 Commit {proofGapItem.evidence.commitHash}: {proofGapItem.evidence.commitMessage}
               </div>
-              <div style={{ color: '#38bdf8', fontSize: '0.74rem' }}>
-                Git Blame Verified: {proofGapItem.evidence.linesAuthored} lines authored by candidate
+              <div style={{ color: '#38bdf8', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>Git Blame Verified: {proofGapItem.evidence.linesAuthored} lines authored by candidate</span>
+                <span className="jr-simulated-tag">Simulated</span>
               </div>
 
               <div className="proofgap-snippet">
@@ -1558,7 +1581,7 @@ export default function JobRadarMap() {
       <JrSheet
         open={Boolean(applyModalCompany)}
         onClose={() => setApplyModalCompany(null)}
-        badge="CRYPTOGRAPHIC PASSPORT"
+        badge="CRYPTOGRAPHIC PASSPORT · DEMO"
         title={`Apply to ${applyModalCompany?.name || ''}`}
       >
         {applyModalCompany && (
@@ -1584,7 +1607,7 @@ export default function JobRadarMap() {
               </div>
               <div className="summary-row">
                 <span>Passport Seal:</span>
-                <span style={{ color: '#e8803f', fontFamily: 'monospace' }}>SHA-256 VALIDATED ✓</span>
+                <span style={{ color: '#e8803f', fontFamily: 'monospace' }}>SHA-256 VALIDATED ✓ (Demo Seal)</span>
               </div>
             </div>
 

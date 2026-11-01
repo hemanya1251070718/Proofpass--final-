@@ -826,6 +826,78 @@
   box-shadow: 0 0 0 4px rgba(232, 128, 63, 0.4), 0 8px 28px rgba(0, 0, 0, 0.95);
 }
 
+/* WP9: About this data Footnotes & Transparency */
+.jr-footnotes {
+  margin-top: 28px;
+  padding: 18px 20px;
+  border-radius: var(--jr-radius-card, 20px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--jr-line, rgba(255, 255, 255, 0.08));
+}
+
+.jr-footnotes__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.jr-footnotes__badge {
+  font-size: 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  color: var(--jr-fg-muted, #9c958f);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.jr-footnotes__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--jr-fg, #fff);
+  margin: 0;
+}
+
+.jr-footnotes__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 0.74rem;
+  color: var(--jr-fg-muted, #9c958f);
+  line-height: 1.5;
+}
+
+.jr-footnotes__list a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.jr-sup {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--jr-accent, #e8803f);
+  margin-right: 4px;
+}
+
+.jr-simulated-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(232, 128, 63, 0.16);
+  border: 1px solid rgba(232, 128, 63, 0.35);
+  color: #fb923c;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
 /* Global Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   *,
