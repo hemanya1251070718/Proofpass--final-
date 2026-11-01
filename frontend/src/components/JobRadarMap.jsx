@@ -113,6 +113,10 @@ export default function JobRadarMap() {
   const [selectedCandidate, setSelectedCandidate] = useState(VERIFIED_TALENT_PROFILES[0])
   const [mapTheme, setMapTheme] = useState('dark')
 
+  // Interactive Card Expansion: tracks which card is currently expanded on click
+  const [expandedCardId, setExpandedCardId] = useState(RADAR_COMPANIES[0]?.id || null)
+  const [expandedCandidateId, setExpandedCandidateId] = useState(VERIFIED_TALENT_PROFILES[0]?.id || null)
+
   // Active iOS Modal Sheet: null | 'origin' | 'corridor' | 'filter' | 'key'
   const [activeModal, setActiveModal] = useState(null)
 
@@ -620,6 +624,7 @@ export default function JobRadarMap() {
 
         marker.on('click', () => {
           setSelectedCompany(comp)
+          setExpandedCardId(comp.id)
           map.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14.5, { duration: 0.8 })
         })
 
@@ -660,6 +665,7 @@ export default function JobRadarMap() {
 
         marker.on('click', () => {
           setSelectedCandidate(cand)
+          setExpandedCandidateId(cand.id)
           map.flyTo([cand.coordinates.lat, cand.coordinates.lng], 14, { duration: 0.8 })
         })
 
@@ -989,6 +995,29 @@ export default function JobRadarMap() {
 
           {/* RIGHT: JOB OPPORTUNITY CARDS OR RECRUITER TALENT CARDS */}
           <div className="radar-listings-scroll">
+            {/* Header / Expand All Control */}
+            <div className="radar-listings-header">
+              <span className="listings-count-badge">
+                {perspective === 'candidate'
+                  ? `${filteredCompanies.length} Verified Roles Mapped`
+                  : `${VERIFIED_TALENT_PROFILES.length} Verified Profiles Mapped`}
+              </span>
+              <button
+                type="button"
+                className="expand-all-pill-btn"
+                onClick={() => {
+                  if (perspective === 'candidate') {
+                    setExpandedCardId((prev) => (prev ? null : (filteredCompanies[0]?.id || null)))
+                  } else {
+                    setExpandedCandidateId((prev) => (prev ? null : (VERIFIED_TALENT_PROFILES[0]?.id || null)))
+                  }
+                }}
+                title="Toggle detailed card expansion"
+              >
+                {(perspective === 'candidate' ? expandedCardId : expandedCandidateId) ? 'Collapse All' : 'Expand Top Match'}
+              </button>
+            </div>
+
             {perspective === 'candidate' ? (
               filteredCompanies.length === 0 ? (
                 <div className="radar-empty-state">
@@ -1013,21 +1042,23 @@ export default function JobRadarMap() {
               ) : (
                 filteredCompanies.map((comp) => {
                   const isSelected = selectedCompany?.id === comp.id
+                  const isExpanded = expandedCardId === comp.id
                   const isSmb = comp.tier === 'smb'
                   const isRemote = comp.workMode === 'Remote'
 
                   return (
                     <div
                       key={comp.id}
-                      className={`radar-company-card ${isSelected ? 'active' : ''} ${isSmb ? 'smb-card' : ''}`}
+                      className={`radar-company-card ${isSelected ? 'active' : ''} ${isExpanded ? 'is-expanded' : ''} ${isSmb ? 'smb-card' : ''}`}
                       onClick={() => {
                         setSelectedCompany(comp)
+                        setExpandedCardId((prev) => (prev === comp.id ? null : comp.id))
                         if (mapInstanceRef.current && comp.coordinates) {
                           mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14.5, { duration: 0.8 })
                         }
                       }}
                     >
-                      {/* Top Header Row */}
+                      {/* Compact Impressive Header (Always Visible) */}
                       <div className="radar-comp-top-row">
                         <div className="radar-comp-identity">
                           <div className="radar-entity-frame">
@@ -1051,18 +1082,19 @@ export default function JobRadarMap() {
                           </div>
 
                           <div className="radar-name-block">
-                            <h3 className="radar-comp-name">
-                              {comp.name}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <h3 className="radar-comp-name">{comp.name}</h3>
                               <span className="corporate-verified-check" title="Verified Corporate Employer">
                                 ✓
                               </span>
-                            </h3>
+                            </div>
+                            <div className="radar-role-title-compact">{comp.roleTitle}</div>
                             <p className="radar-comp-loc">
                               📍 {comp.techPark} ·{' '}
                               {isRemote ? (
                                 <span className="remote-pill">🌐 100% Remote</span>
                               ) : (
-                                <span>{comp.distanceKm} km commute</span>
+                                <span>🚗 {comp.distanceKm} km · ⏱️ {comp.transit?.travelTimeMinutes || 20}m commute</span>
                               )}
                             </p>
                           </div>
@@ -1077,103 +1109,110 @@ export default function JobRadarMap() {
                               ⚡ FAST-TRACK
                             </span>
                           )}
+                          <div className="card-expand-indicator">
+                            <span>{isExpanded ? 'Hide Details' : 'Details'}</span>
+                            <span className={`expand-chevron ${isExpanded ? 'open' : ''}`}>▾</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Role & Opportunity Title */}
-                      <div className="radar-role-title">{comp.roleTitle}</div>
-                      <div className="radar-opp-type">{comp.opportunityType}</div>
-
-                      {/* Stipend / CTC Row */}
-                      <div className="radar-stipend-row">
-                        <span className="radar-stipend-val">{comp.stipend}</span>
-                        <span className="dot-sep">·</span>
-                        <span className="workmode-text">{comp.workModeDesc}</span>
-                      </div>
-
-                      {/* Transit Commute Badge */}
-                      {!isRemote && comp.transit && (
-                        <div className="radar-transit-pill-row">
-                          <span className="radar-transit-badge">
-                            ⚡ {comp.transit.travelTimeMinutes} mins · {comp.transit.transitType}
-                          </span>
-                          <span className="radar-metro-badge">
-                            🚇 {comp.transit.metroLine?.split('(')[0] || 'Metro Connected'}
+                      {/* Expandable Body: Revealed on Click */}
+                      <div className="card-expandable-content">
+                        {/* Compensation & Work Mode */}
+                        <div className="radar-stipend-row">
+                          <span className="radar-stipend-val">{comp.stipend}</span>
+                          <span className="dot-sep">·</span>
+                          <span className="workmode-text">{comp.workModeDesc}</span>
+                          <span className="dot-sep">·</span>
+                          <span style={{ color: '#e8803f', fontFamily: 'monospace', fontSize: '0.74rem' }}>
+                            {comp.opportunityType}
                           </span>
                         </div>
-                      )}
 
-                      {/* Cryptographic Skill Passport Tags */}
-                      <div className="radar-skill-tags">
-                        {comp.requiredSkills.map((sk) => {
-                          const isVerified = verifiedSkillSet.has(sk.toLowerCase())
-                          return isVerified ? (
-                            <span
-                              key={sk}
-                              className="radar-skill-tag verified"
-                              title="Skill cryptographically verified on your passport"
-                            >
-                              ✓ {sk}
+                        {/* Transit Corridor & Metro */}
+                        {!isRemote && comp.transit && (
+                          <div className="radar-transit-pill-row">
+                            <span className="radar-transit-badge">
+                              ⚡ {comp.transit.travelTimeMinutes} mins commute via {comp.transit.corridorName || 'Road'}
                             </span>
-                          ) : (
-                            <button
-                              key={sk}
-                              type="button"
-                              className="radar-skill-tag clickable-gap"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleOpenProofGap(sk, comp)
-                              }}
-                              title="Click to resolve Proof-Gap: Sign commit evidence & boost match score"
-                            >
-                              ○ {sk}
-                              <span className="radar-gap-hint">+VERIFY</span>
-                            </button>
-                          )
-                        })}
-                      </div>
+                            <span className="radar-metro-badge">
+                              🚇 {comp.transit.metroLine || 'Metro Connected'}
+                            </span>
+                          </div>
+                        )}
 
-                      {/* Description */}
-                      <p className="radar-comp-desc">{comp.description}</p>
+                        {/* Cryptographic Skill Verification Tags */}
+                        <div className="radar-skill-tags">
+                          {comp.requiredSkills.map((sk) => {
+                            const isVerified = verifiedSkillSet.has(sk.toLowerCase())
+                            return isVerified ? (
+                              <span
+                                key={sk}
+                                className="radar-skill-tag verified"
+                                title="Skill cryptographically verified on your passport"
+                              >
+                                ✓ {sk}
+                              </span>
+                            ) : (
+                              <button
+                                key={sk}
+                                type="button"
+                                className="radar-skill-tag clickable-gap"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleOpenProofGap(sk, comp)
+                                }}
+                                title="Click to resolve Proof-Gap: Sign commit evidence & boost match score"
+                              >
+                                ○ {sk}
+                                <span className="radar-gap-hint">+VERIFY</span>
+                              </button>
+                            )
+                          })}
+                        </div>
 
-                      {/* Bottom Action Buttons */}
-                      <div className="radar-card-actions">
-                        <button
-                          type="button"
-                          className="radar-action-btn primary"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleApply(comp)
-                          }}
-                        >
-                          🚀 Apply with Passport
-                        </button>
+                        {/* Full Role & Team Description */}
+                        <p className="radar-comp-desc">{comp.description}</p>
 
-                        <a
-                          href={comp.officialUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="radar-secondary-link"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Verify on official corporate career portal"
-                        >
-                          Official Portal ↗
-                        </a>
+                        {/* Action Buttons */}
+                        <div className="radar-card-actions">
+                          <button
+                            type="button"
+                            className="radar-action-btn primary"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleApply(comp)
+                            }}
+                          >
+                            🚀 Apply with Passport
+                          </button>
 
-                        <button
-                          type="button"
-                          className="radar-secondary-link map-focus-btn"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedCompany(comp)
-                            if (mapInstanceRef.current && comp.coordinates) {
-                              mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 15, { duration: 0.9 })
-                            }
-                          }}
-                          title="Focus marker on street map"
-                        >
-                          📍 Map
-                        </button>
+                          <a
+                            href={comp.officialUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="radar-secondary-link"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Verify on official corporate career portal"
+                          >
+                            Official Portal ↗
+                          </a>
+
+                          <button
+                            type="button"
+                            className="radar-secondary-link map-focus-btn"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCompany(comp)
+                              if (mapInstanceRef.current && comp.coordinates) {
+                                mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 15, { duration: 0.9 })
+                              }
+                            }}
+                            title="Focus marker on street map"
+                          >
+                            📍 Focus Map
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )
@@ -1183,12 +1222,14 @@ export default function JobRadarMap() {
               // Recruiter View: Verified Candidates
               VERIFIED_TALENT_PROFILES.map((cand) => {
                 const isSelected = selectedCandidate?.id === cand.id
+                const isExpanded = expandedCandidateId === cand.id
                 return (
                   <div
                     key={cand.id}
-                    className={`radar-candidate-card ${isSelected ? 'active' : ''}`}
+                    className={`radar-candidate-card ${isSelected ? 'active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
                     onClick={() => {
                       setSelectedCandidate(cand)
+                      setExpandedCandidateId((prev) => (prev === cand.id ? null : cand.id))
                       if (mapInstanceRef.current && cand.coordinates) {
                         mapInstanceRef.current.flyTo([cand.coordinates.lat, cand.coordinates.lng], 14, { duration: 0.8 })
                       }
@@ -1200,35 +1241,43 @@ export default function JobRadarMap() {
                           <strong className="cand-codename">{cand.codeName}</strong>
                           <span className="cand-sha-pill">SHA-256 VALID ✓</span>
                         </div>
+                        <div className="cand-role-compact">{cand.roleTag}</div>
                         <div className="cand-loc-text">
                           📍 {cand.neighborhood} · <strong style={{ color: '#38bdf8' }}>{cand.distanceToClientKm} km away</strong>
                         </div>
                       </div>
 
-                      <span className="cand-fit-badge">{cand.matchToHiringNeeds}% FIT</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+                        <span className="cand-fit-badge">{cand.matchToHiringNeeds}% FIT</span>
+                        <div className="card-expand-indicator">
+                          <span>{isExpanded ? 'Hide' : 'Profile'}</span>
+                          <span className={`expand-chevron ${isExpanded ? 'open' : ''}`}>▾</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="cand-role">{cand.roleTag}</div>
-                    <div className="cand-depth">⚡ Verified Commit Depth: {cand.commitDepth}</div>
+                    <div className="card-expandable-content">
+                      <div className="cand-depth">⚡ Verified Commit Depth: {cand.commitDepth}</div>
 
-                    <div className="radar-skill-tags">
-                      {cand.verifiedSkills.map((sk) => (
-                        <span key={sk} className="radar-skill-tag verified">
-                          ✓ {sk}
-                        </span>
-                      ))}
+                      <div className="radar-skill-tags">
+                        {cand.verifiedSkills.map((sk) => (
+                          <span key={sk} className="radar-skill-tag verified">
+                            ✓ {sk}
+                          </span>
+                        ))}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="radar-action-btn recruiter-invite-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDispatchInterviewInvite(cand)
+                        }}
+                      >
+                        ⚡ Dispatch Direct Interview Invite
+                      </button>
                     </div>
-
-                    <button
-                      type="button"
-                      className="radar-action-btn recruiter-invite-btn"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDispatchInterviewInvite(cand)
-                      }}
-                    >
-                      ⚡ Dispatch Direct Interview Invite
-                    </button>
                   </div>
                 )
               })

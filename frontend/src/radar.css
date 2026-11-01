@@ -686,13 +686,13 @@
   to { stroke-dashoffset: 0; }
 }
 
-/* ── 4. APPLE LIQUID GLASS JOB CARDS (NO SQUISHING GUARANTEED) ────────────── */
+/* ── 4. APPLE LIQUID GLASS JOB CARDS (INTERACTIVE EXPANDABLE) ────────────── */
 .radar-listings-scroll {
   max-height: 680px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding-right: 6px;
   -webkit-overflow-scrolling: touch;
 }
@@ -714,21 +714,57 @@
   background: rgba(232, 128, 63, 0.45);
 }
 
-/* The Card Container: flex-shrink: 0 ensures cards NEVER squish into flat bars */
+/* Listings Header & Quick Expand Pill */
+.radar-listings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 6px;
+  flex-shrink: 0;
+}
+
+.listings-count-badge {
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #9c958f;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.expand-all-pill-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d6d3cd;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.expand-all-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(232, 128, 63, 0.4);
+  color: #fff;
+}
+
+/* The Card Container: Compact in Default State, Springs Open on Click */
 .radar-company-card {
   flex-shrink: 0;
-  min-height: 220px;
-  background: rgba(22, 20, 18, 0.78);
+  min-height: auto;
+  background: rgba(22, 20, 18, 0.76);
   backdrop-filter: blur(28px) saturate(180%);
   -webkit-backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 16px;
-  padding: 20px;
+  padding: 16px 18px;
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
 }
 
 .radar-company-card::before {
@@ -743,9 +779,9 @@
 
 .radar-company-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(232, 128, 63, 0.5);
+  border-color: rgba(232, 128, 63, 0.45);
   background: rgba(28, 25, 23, 0.88);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 18px rgba(232, 128, 63, 0.15);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(232, 128, 63, 0.14);
 }
 
 .radar-company-card:hover::before {
@@ -755,7 +791,14 @@
 .radar-company-card.active {
   border-color: #e8803f;
   background: rgba(30, 26, 24, 0.95);
-  box-shadow: 0 0 0 1px #e8803f, 0 16px 40px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 0 0 1px #e8803f, 0 14px 36px rgba(0, 0, 0, 0.6);
+}
+
+.radar-company-card.is-expanded {
+  background: rgba(26, 23, 21, 0.96);
+  border-color: rgba(232, 128, 63, 0.65);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.65), 0 0 20px rgba(232, 128, 63, 0.16);
+  padding: 18px 20px;
 }
 
 .radar-company-card.smb-card {
@@ -768,13 +811,18 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+}
+
+.radar-company-card.is-expanded .radar-comp-top-row {
+  margin-bottom: 4px;
 }
 
 .radar-comp-identity {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
 }
 
 .radar-entity-frame {
@@ -831,10 +879,18 @@
   font-size: 0.88rem;
 }
 
+.radar-role-title-compact {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #f5f3ef;
+  margin: 2px 0 1px;
+  letter-spacing: -0.01em;
+}
+
 .radar-comp-loc {
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   color: #9c958f;
-  margin: 3px 0 0;
+  margin: 2px 0 0;
 }
 
 .remote-pill {
@@ -879,6 +935,68 @@
   font-size: 0.65rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-weight: 700;
+}
+
+/* Card Expand Indicator Button */
+.card-expand-indicator {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d6d3cd;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  margin-top: 3px;
+}
+
+.radar-company-card:hover .card-expand-indicator,
+.radar-candidate-card:hover .card-expand-indicator {
+  background: rgba(232, 128, 63, 0.15);
+  border-color: rgba(232, 128, 63, 0.4);
+  color: #e8803f;
+}
+
+.expand-chevron {
+  font-size: 0.72rem;
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  display: inline-block;
+  line-height: 1;
+}
+
+.expand-chevron.open {
+  transform: rotate(180deg);
+  color: #e8803f;
+}
+
+/* ── EXPANDABLE DETAILS ACCORDION ────────────────────────────────────────── */
+.card-expandable-content {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.28s ease, margin 0.3s ease, padding 0.3s ease;
+  pointer-events: none;
+}
+
+.radar-company-card.is-expanded .card-expandable-content,
+.radar-candidate-card.is-expanded .card-expandable-content {
+  max-height: 520px;
+  opacity: 1;
+  pointer-events: auto;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cand-role-compact {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #e8803f;
+  margin: 2px 0;
 }
 
 /* Card Role & Stipend Details */
@@ -1084,14 +1202,14 @@
 /* Recruiter View Candidate Card */
 .radar-candidate-card {
   flex-shrink: 0;
-  min-height: 200px;
-  background: rgba(20, 19, 18, 0.85);
+  min-height: auto;
+  background: rgba(20, 19, 18, 0.82);
   backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 16px;
-  padding: 18px;
+  padding: 16px 18px;
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .radar-candidate-card:hover {
@@ -1106,11 +1224,22 @@
   box-shadow: 0 0 0 1px #38bdf8, 0 14px 34px rgba(0, 0, 0, 0.6);
 }
 
+.radar-candidate-card.is-expanded {
+  background: rgba(16, 26, 38, 0.6);
+  border-color: #38bdf8;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.2);
+  padding: 18px 20px;
+}
+
 .cand-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+
+.radar-candidate-card.is-expanded .cand-header-row {
+  margin-bottom: 4px;
 }
 
 .cand-title-block {
