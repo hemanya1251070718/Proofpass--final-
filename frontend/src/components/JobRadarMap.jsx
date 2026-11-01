@@ -57,6 +57,44 @@ const TILE_PRESETS = {
   }
 }
 
+function getTileConfig(theme, customKey) {
+  if (customKey && customKey.startsWith('pk.')) {
+    // Enterprise Mapbox key
+    if (theme === 'satellite') {
+      return {
+        url: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${customKey}`,
+        className: 'leaflet-clean-streets',
+        tileSize: 512,
+        zoomOffset: -1
+      }
+    }
+    return {
+      url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${customKey}`,
+      className: 'leaflet-clean-streets',
+      tileSize: 512,
+      zoomOffset: -1
+    }
+  }
+
+  if (customKey && customKey.length > 8 && !customKey.startsWith('pk.')) {
+    // Authenticated CartoDB key provided
+    if (theme === 'dark') {
+      return {
+        url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${customKey}`,
+        className: 'leaflet-clean-streets'
+      }
+    }
+  }
+
+  // Default: OpenStreetMap & ESRI with ZERO watermark and ZERO key required
+  return {
+    url: TILE_PRESETS[theme]?.url || TILE_PRESETS.dark.url,
+    className: TILE_PRESETS[theme]?.className || 'leaflet-dark-tiles',
+    tileSize: 256,
+    zoomOffset: 0
+  }
+}
+
 export default function JobRadarMap() {
   const { user } = useAuth()
   const [passport, setPassport] = useState(null)
@@ -157,12 +195,14 @@ export default function JobRadarMap() {
       // Add Zoom Control at top-right
       L.control.zoom({ position: 'topright' }).addTo(map)
 
-      // Add initial Tile Layer (OpenStreetMap with Zero Watermark)
-      const currentPreset = TILE_PRESETS[mapTheme]
-      const tileLayer = L.tileLayer(currentPreset.url, {
+      // Add initial Tile Layer (OpenStreetMap with Zero Watermark or Enterprise Mapbox)
+      const currentConfig = getTileConfig(mapTheme, customApiKey)
+      const tileLayer = L.tileLayer(currentConfig.url, {
         maxZoom: 19,
-        className: currentPreset.className,
-        subdomains: ['a', 'b', 'c']
+        className: currentConfig.className,
+        subdomains: ['a', 'b', 'c'],
+        tileSize: currentConfig.tileSize,
+        zoomOffset: currentConfig.zoomOffset
       }).addTo(map)
 
       tileLayerRef.current = tileLayer
@@ -176,13 +216,13 @@ export default function JobRadarMap() {
     const map = mapInstanceRef.current
     const markersLayer = markersLayerRef.current
 
-    // 2. Update Tile Layer on Theme Change
+    // 2. Update Tile Layer on Theme or Key Change
     if (tileLayerRef.current) {
-      const currentPreset = TILE_PRESETS[mapTheme]
-      tileLayerRef.current.setUrl(currentPreset.url)
+      const currentConfig = getTileConfig(mapTheme, customApiKey)
+      tileLayerRef.current.setUrl(currentConfig.url)
       const container = tileLayerRef.current.getContainer()
       if (container) {
-        container.className = `leaflet-tile-container leaflet-zoom-animated ${currentPreset.className}`
+        container.className = `leaflet-tile-container leaflet-zoom-animated ${currentConfig.className}`
       }
     }
 
@@ -253,7 +293,7 @@ export default function JobRadarMap() {
     } else {
       map.flyTo([20.5937, 78.9629], 5, { duration: 0.8 }) // All India view
     }
-  }, [browsingScope, userCoords, filteredCompanies, selectedCompany, mapTheme])
+  }, [browsingScope, userCoords, filteredCompanies, selectedCompany, mapTheme, customApiKey])
 
   // Change city tech hub
   const handleHubSelect = (hubKey) => {
@@ -662,6 +702,19 @@ export default function JobRadarMap() {
               >
                 Save & Apply Key
               </button>
+              {customApiKey && (
+                <button
+                  type="button"
+                  className="b sm g"
+                  onClick={() => {
+                    setCustomApiKey('')
+                    handleSaveApiKey('')
+                  }}
+                  title="Remove key and use default OpenStreetMap"
+                >
+                  Reset to Free Default
+                </button>
+              )}
               <button
                 type="button"
                 className="b sm g"
