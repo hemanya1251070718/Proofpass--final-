@@ -1,15 +1,15 @@
 /**
- * JobRadarMap Component (Production & Hackathon Grade)
+ * ProofPass - Job Radar & Commute Geolocation Microservice
+ * Production UI inspired by Linear, Apple Maps, and Vercel Design Systems
  *
- * Implements:
- * 1. Real-World Transit Corridors & Commute Polyline (Metro Line 3, travel times)
- * 2. Cryptographic "Proof-Gap" Resolution Drawer (1-Click commit verification to boost match)
- * 3. SMB & Startup Fast-Track Enablement (Track 2 SMB hiring pipeline)
- * 4. Pune SEZ Corridor Geofencing Polygons (Hinjawadi, Kharadi, Magarpatta, SB Road)
- * 5. Two-Way Marketplace: Recruiter Talent Scout Mode (B2B SaaS perspective)
- *
- * 100% Free - Zero Watermark - Zero API Key Required out-of-the-box.
- * Supports optional Enterprise Mapbox / Google tokens via HUD configuration.
+ * Features:
+ * - Fluid glassmorphic command bar with interactive dropdown popovers
+ * - Real-time keyword & skill search with instant reactivity
+ * - Draggable commute origin pin + High-accuracy Wi-Fi/GPS triangulation
+ * - Pune SEZ corridor geofencing (Hinjawadi, Kharadi, Magarpatta, SB Road)
+ * - SMB Fast-Track hiring enablement (Track 2)
+ * - 1-Click Cryptographic Proof-Gap resolution drawer (FastAPI SQLite sync)
+ * - Two-way marketplace: Candidate View vs Recruiter Talent Scout
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -30,7 +30,7 @@ import '../radar.css'
 // Haversine formula: calculates distance in km between two lat/long points
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0
-  const R = 6371 // Radius of Earth in km
+  const R = 6371
   const dLat = (lat2 - lat1) * (Math.PI / 180)
   const dLon = (lon2 - lon1) * (Math.PI / 180)
   const a =
@@ -43,31 +43,27 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   return Math.round(R * c * 10) / 10
 }
 
-// Available Tile Providers (All 100% Free with zero API keys required!)
+// Tile Providers (100% Free with zero API keys required by default)
 const TILE_PRESETS = {
   dark: {
-    name: 'Dark Tech Streets',
+    name: 'Dark Tech',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    className: 'leaflet-dark-tiles',
-    attribution: '© OpenStreetMap contributors'
+    className: 'leaflet-dark-tiles'
   },
   streets: {
-    name: 'Daylight Streets (Google Maps style)',
+    name: 'Streets',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    className: 'leaflet-clean-streets',
-    attribution: '© OpenStreetMap contributors'
+    className: 'leaflet-clean-streets'
   },
   satellite: {
-    name: 'Satellite Imagery',
+    name: 'Satellite',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    className: 'leaflet-satellite-tiles',
-    attribution: 'Source: Esri, Maxar, Earthstar Geographics'
+    className: 'leaflet-satellite-tiles'
   }
 }
 
 function getTileConfig(theme, customKey) {
   if (customKey && customKey.startsWith('pk.')) {
-    // Enterprise Mapbox key
     if (theme === 'satellite') {
       return {
         url: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${customKey}`,
@@ -84,17 +80,6 @@ function getTileConfig(theme, customKey) {
     }
   }
 
-  if (customKey && customKey.length > 8 && !customKey.startsWith('pk.')) {
-    // Authenticated CartoDB key provided
-    if (theme === 'dark') {
-      return {
-        url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?api_key=${customKey}`,
-        className: 'leaflet-clean-streets'
-      }
-    }
-  }
-
-  // Default: OpenStreetMap & ESRI with ZERO watermark and ZERO key required
   return {
     url: TILE_PRESETS[theme]?.url || TILE_PRESETS.dark.url,
     className: TILE_PRESETS[theme]?.className || 'leaflet-dark-tiles',
@@ -110,28 +95,23 @@ export default function JobRadarMap() {
   // 1. Perspective: 'candidate' (Applicant Radar) vs 'recruiter' (B2B Talent Scout)
   const [perspective, setPerspective] = useState('candidate')
 
-  // Scope: 'city' (In My City) vs 'global' (Anywhere - Best Skill Match)
-  const [browsingScope, setBrowsingScope] = useState('city')
-  const [selectedHub, setSelectedHub] = useState('pune')
+  // Search & Navigation
+  const [searchQuery, setSearchQuery] = useState('')
   const [userCoords, setUserCoords] = useState(PUNE_NEIGHBORHOOD_ORIGINS[0] || SAMPLE_TECH_HUBS.pune)
-  const [showLocationPicker, setShowLocationPicker] = useState(false)
   const [radiusFilter, setRadiusFilter] = useState('all') // 'all', '5', '15', '30'
   const [workModeFilter, setWorkModeFilter] = useState('ALL') // 'ALL', 'Onsite', 'Hybrid', 'Remote'
-  
-  // 2. Organization Tier Filter: 'ALL' | 'smb' | 'enterprise'
-  const [tierFilter, setTierFilter] = useState('ALL')
-
-  // 3. SEZ Corridor Geofencing: 'all' | corridor ID
+  const [tierFilter, setTierFilter] = useState('ALL') // 'ALL', 'smb', 'enterprise'
   const [selectedSezCorridor, setSelectedSezCorridor] = useState('all')
 
-  // 4. Live Search Query (Adzuna / JSearch / Keyword pipeline)
-  const [searchQuery, setSearchQuery] = useState('')
-
+  // Selection
   const [selectedCompany, setSelectedCompany] = useState(RADAR_COMPANIES[0])
   const [selectedCandidate, setSelectedCandidate] = useState(VERIFIED_TALENT_PROFILES[0])
   const [mapTheme, setMapTheme] = useState('dark') // 'dark', 'streets', 'satellite'
   const [locating, setLocating] = useState(false)
-  
+
+  // Interactive Dropdown States
+  const [activeDropdown, setActiveDropdown] = useState(null) // 'origin', 'corridor', 'filter', null
+
   // Modals & Proof-Gap Drawer states
   const [applyModalCompany, setApplyModalCompany] = useState(null)
   const [appliedSuccess, setAppliedSuccess] = useState(false)
@@ -151,6 +131,18 @@ export default function JobRadarMap() {
   const markersLayerRef = useRef(null)
   const sezLayerRef = useRef(null)
   const transitPolylineRef = useRef(null)
+  const toolbarRef = useRef(null)
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target)) {
+        setActiveDropdown(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   // Load applicant passport for verified skill matching
   useEffect(() => {
@@ -181,7 +173,6 @@ export default function JobRadarMap() {
     const isRemote = comp.workMode === 'Remote'
     const distKm = isRemote ? 0 : calculateDistanceKm(userCoords.lat, userCoords.lng, comp.coordinates.lat, comp.coordinates.lng)
 
-    // Match score based on verified skills
     const totalRequired = comp.requiredSkills.length
     const matchedCount = comp.requiredSkills.filter((sk) => verifiedSkillSet.has(sk.toLowerCase())).length
     const matchScore = totalRequired > 0 ? Math.round(58 + (matchedCount / totalRequired) * 41) : 75
@@ -196,22 +187,17 @@ export default function JobRadarMap() {
 
   // Filter based on selected scope, tier, SEZ corridor, search query, and workMode
   const filteredCompanies = processedCompanies.filter((comp) => {
-    // Live Search Query Filter
+    // Search Query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim()
       const corpus = `${comp.name} ${comp.roleTitle} ${comp.techPark} ${(comp.requiredSkills || []).join(' ')} ${comp.description}`.toLowerCase()
       if (!corpus.includes(q)) return false
     }
 
-    // Mode 1: In My City
-    if (browsingScope === 'city') {
-      if (comp.hubCity !== selectedHub && comp.workMode !== 'Remote') {
-        return false
-      }
-      if (radiusFilter === '5' && comp.distanceKm > 5.5 && comp.workMode !== 'Remote') return false
-      if (radiusFilter === '15' && comp.distanceKm > 16 && comp.workMode !== 'Remote') return false
-      if (radiusFilter === '30' && comp.distanceKm > 35 && comp.workMode !== 'Remote') return false
-    }
+    // Radius Filter
+    if (radiusFilter === '5' && comp.distanceKm > 5.5 && comp.workMode !== 'Remote') return false
+    if (radiusFilter === '15' && comp.distanceKm > 16 && comp.workMode !== 'Remote') return false
+    if (radiusFilter === '30' && comp.distanceKm > 35 && comp.workMode !== 'Remote') return false
 
     // Work Mode Filter
     if (workModeFilter !== 'ALL' && comp.workMode.toLowerCase() !== workModeFilter.toLowerCase()) {
@@ -235,19 +221,17 @@ export default function JobRadarMap() {
   useEffect(() => {
     if (!mapContainerRef.current) return
 
-    // 1. Create Leaflet map instance if not already existing
+    // 1. Create Leaflet map instance
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         center: [userCoords.lat, userCoords.lng],
-        zoom: browsingScope === 'city' ? 12 : 5,
+        zoom: 12.5,
         zoomControl: false,
         attributionControl: false
       })
 
-      // Add Zoom Control at top-right
       L.control.zoom({ position: 'topright' }).addTo(map)
 
-      // Add initial Tile Layer
       const currentConfig = getTileConfig(mapTheme, customApiKey)
       const tileLayer = L.tileLayer(currentConfig.url, {
         maxZoom: 19,
@@ -259,7 +243,6 @@ export default function JobRadarMap() {
 
       tileLayerRef.current = tileLayer
 
-      // Layer groups
       const sezLayer = L.layerGroup().addTo(map)
       sezLayerRef.current = sezLayer
 
@@ -273,7 +256,7 @@ export default function JobRadarMap() {
     const markersLayer = markersLayerRef.current
     const sezLayer = sezLayerRef.current
 
-    // 2. Update Tile Layer on Theme or Key Change
+    // 2. Update Tile Layer on Theme Change
     if (tileLayerRef.current) {
       const currentConfig = getTileConfig(mapTheme, customApiKey)
       tileLayerRef.current.setUrl(currentConfig.url)
@@ -283,32 +266,30 @@ export default function JobRadarMap() {
       }
     }
 
-    // 3. Render Pune SEZ Corridor Boundary Polygons (When viewing Pune)
+    // 3. Render Pune SEZ Corridor Boundary Polygons
     sezLayer.clearLayers()
-    if (selectedHub === 'pune' && browsingScope === 'city') {
-      PUNE_SEZ_CORRIDORS.forEach((sez) => {
-        const isSelected = selectedSezCorridor === sez.id
-        const poly = L.polygon(sez.polygon, {
-          color: isSelected ? '#fff' : sez.color,
-          weight: isSelected ? 3 : 1.5,
-          fillColor: sez.fillColor,
-          fillOpacity: isSelected ? 0.32 : 0.12,
-          dashArray: isSelected ? null : '4, 4'
-        })
-
-        poly.bindTooltip(
-          `<div style="font-family: sans-serif; font-size: 0.75rem;"><strong>${sez.name}</strong><br/><span style="color: #e8803f;">${sez.subtitle}</span></div>`,
-          { sticky: true }
-        )
-
-        poly.on('click', () => {
-          setSelectedSezCorridor(sez.id)
-          map.fitBounds(poly.getBounds(), { padding: [20, 20] })
-        })
-
-        poly.addTo(sezLayer)
+    PUNE_SEZ_CORRIDORS.forEach((sez) => {
+      const isSelected = selectedSezCorridor === sez.id
+      const poly = L.polygon(sez.polygon, {
+        color: isSelected ? '#fff' : sez.color,
+        weight: isSelected ? 3 : 1.5,
+        fillColor: sez.fillColor,
+        fillOpacity: isSelected ? 0.32 : 0.12,
+        dashArray: isSelected ? null : '4, 4'
       })
-    }
+
+      poly.bindTooltip(
+        `<div style="font-family: sans-serif; font-size: 0.75rem;"><strong>${sez.name}</strong><br/><span style="color: #e8803f;">${sez.subtitle}</span></div>`,
+        { sticky: true }
+      )
+
+      poly.on('click', () => {
+        setSelectedSezCorridor(sez.id)
+        map.fitBounds(poly.getBounds(), { padding: [24, 24] })
+      })
+
+      poly.addTo(sezLayer)
+    })
 
     // 4. Update Animated Transit Polyline
     if (transitPolylineRef.current) {
@@ -319,7 +300,6 @@ export default function JobRadarMap() {
     if (perspective === 'candidate' && selectedCompany && selectedCompany.workMode !== 'Remote') {
       const routePoints = [
         [userCoords.lat, userCoords.lng],
-        // Realistic mid-way corridor inflection point for curve realism
         [
           (userCoords.lat + selectedCompany.coordinates.lat) / 2 + 0.003,
           (userCoords.lng + selectedCompany.coordinates.lng) / 2 - 0.002
@@ -337,12 +317,12 @@ export default function JobRadarMap() {
       transitPolylineRef.current = polyline
     }
 
-    // 5. Render Markers depending on Perspective (Candidate vs Recruiter)
+    // 5. Render Markers depending on Perspective
     markersLayer.clearLayers()
 
-    // Add User Current Location Blip (Draggable for instant manual precision)
+    // Add Draggable Commute Origin Pin
     const userPinHtml = `
-      <div class="radar-user-map-pin" title="${perspective === 'candidate' ? 'Your Commute Origin (Drag or click map to change)' : 'Your Corporate Office HQ'}">
+      <div class="radar-user-map-pin" title="${perspective === 'candidate' ? 'Your Commute Origin (Drag or click map to change)' : 'Corporate Office HQ'}">
         <div class="user-pin-core"></div>
         <div class="user-pin-ring"></div>
       </div>
@@ -374,7 +354,7 @@ export default function JobRadarMap() {
       })
     })
 
-    // Click anywhere on map background to set commute origin directly
+    // Click anywhere on map to reposition commute origin
     map.off('click')
     map.on('click', (e) => {
       if (e.originalEvent && (e.originalEvent.target.classList.contains('leaflet-container') || e.originalEvent.target.tagName === 'path')) {
@@ -389,7 +369,7 @@ export default function JobRadarMap() {
     })
 
     if (perspective === 'candidate') {
-      // CANDIDATE VIEW: Render Company Beacons
+      // Candidate View: Render Company Beacons
       filteredCompanies.forEach((comp) => {
         const isSelected = selectedCompany?.id === comp.id
         const isHighMatch = comp.matchScore >= 90
@@ -418,7 +398,6 @@ export default function JobRadarMap() {
           map.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14.5, { duration: 0.8 })
         })
 
-        // Rich popup with transit & proof info
         const popupHtml = `
           <div style="font-family: sans-serif; min-width: 200px; padding: 2px;">
             <strong style="color: #111; font-size: 0.95rem;">${comp.name}</strong>
@@ -433,7 +412,7 @@ export default function JobRadarMap() {
         marker.addTo(markersLayer)
       })
     } else {
-      // RECRUITER TALENT SCOUT VIEW: Render Verified Candidate Beacons
+      // Recruiter View: Render Verified Candidates
       VERIFIED_TALENT_PROFILES.forEach((cand) => {
         const isSelected = selectedCandidate?.id === cand.id
 
@@ -459,31 +438,11 @@ export default function JobRadarMap() {
           map.flyTo([cand.coordinates.lat, cand.coordinates.lng], 14, { duration: 0.8 })
         })
 
-        const popupHtml = `
-          <div style="font-family: sans-serif; min-width: 200px; padding: 2px;">
-            <strong style="color: #111; font-size: 0.95rem;">${cand.codeName}</strong>
-            <div style="color: #0284c7; font-weight: bold; font-size: 0.8rem; margin: 3px 0;">96% Hiring Fit · ${cand.neighborhood}</div>
-            <div style="color: #16a34a; font-size: 0.74rem; font-weight: 600; margin-bottom: 4px;">✓ SHA-256 Verified Evidence</div>
-            <div style="color: #555; font-size: 0.72rem; margin-bottom: 6px;">${cand.commitDepth}</div>
-          </div>
-        `
-        marker.bindPopup(popupHtml)
         marker.addTo(markersLayer)
       })
     }
-
-    // Fly to center if scope changed
-    if (browsingScope === 'city') {
-      if (selectedSezCorridor === 'all') {
-        map.flyTo([userCoords.lat, userCoords.lng], 12.2, { duration: 0.8 })
-      }
-    } else {
-      map.flyTo([20.5937, 78.9629], 5, { duration: 0.8 })
-    }
   }, [
     perspective,
-    browsingScope,
-    selectedHub,
     userCoords,
     filteredCompanies,
     selectedCompany,
@@ -495,20 +454,11 @@ export default function JobRadarMap() {
     extraVerifiedSkills
   ])
 
-  // Change city tech hub
-  const handleHubSelect = (hubKey) => {
-    setSelectedHub(hubKey)
-    setSelectedSezCorridor('all')
-    if (SAMPLE_TECH_HUBS[hubKey]) {
-      setUserCoords(SAMPLE_TECH_HUBS[hubKey])
-    }
-  }
-
   // Detect live browser GPS location with Wi-Fi triangulation + IP network fallback
   const handleDetectLocation = async () => {
     setLocating(true)
+    setActiveDropdown(null)
 
-    // Strategy 1: High-Accuracy HTML5 Geolocation (Wi-Fi BSSID / GPS)
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -528,7 +478,6 @@ export default function JobRadarMap() {
         },
         async (geoErr) => {
           console.warn('HTML5 Geolocation unavailable or blocked:', geoErr?.message)
-          // Strategy 2: Network IP Geolocation Fallback
           try {
             const res = await fetch('https://ipapi.co/json/')
             if (res.ok) {
@@ -554,7 +503,7 @@ export default function JobRadarMap() {
           }
 
           setLocating(false)
-          setShowLocationPicker(true)
+          setActiveDropdown('origin')
         },
         {
           enableHighAccuracy: true,
@@ -564,7 +513,7 @@ export default function JobRadarMap() {
       )
     } else {
       setLocating(false)
-      setShowLocationPicker(true)
+      setActiveDropdown('origin')
     }
   }
 
@@ -573,7 +522,6 @@ export default function JobRadarMap() {
     setCustomApiKey(key)
     localStorage.setItem('pp_custom_map_key', key)
     setShowKeyModal(false)
-    alert(key ? 'Enterprise API Key configured and applied!' : 'Custom key cleared. Defaulting to free OpenStreetMap!')
   }
 
   // Open Proof-Gap Resolution Drawer for unverified skill
@@ -596,7 +544,6 @@ export default function JobRadarMap() {
     if (!proofGapItem) return
     setProofGapSigned(true)
 
-    // Call real FastAPI backend endpoint
     try {
       await fetch('/api/v1/passports/verify-commit', {
         method: 'POST',
@@ -649,303 +596,357 @@ export default function JobRadarMap() {
     }, 2200)
   }
 
+  // Count active filter criteria
+  const activeFiltersCount = (radiusFilter !== 'all' ? 1 : 0) + (workModeFilter !== 'ALL' ? 1 : 0) + (tierFilter !== 'ALL' ? 1 : 0)
+
   return (
     <main id="main" className="dash-page radar-page">
       <div className="w">
-        {/* HEADER HERO */}
-        <div className="radar-header-card">
-          <div className="radar-title-group">
-            <span className="k m">GEOLOCATION COMMUTE & SKILL RADAR</span>
-            <h1>
-              Authentic Job & Internship Opportunities
-              <span className="radar-live-badge">
-                <span className="radar-live-dot" /> LIVE STREET MAP
-              </span>
-            </h1>
-            <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--muted, #9c958f)' }}>
-              Real corporate openings mapped on live interactive streets · Zero Watermark · Multi-modal Transit Intelligence.
-            </p>
+        {/* ── 1. TOP NAVBAR / HERO CARD ──────────────────────────────────── */}
+        <header className="radar-navbar-card">
+          <div className="radar-branding">
+            <div className="radar-logo-pulse" title="ProofPass Cryptographic Talent Radar">
+              📡
+            </div>
+            <div className="radar-title-text">
+              <h1>
+                Job Radar & Commute Engine
+                <span className="radar-live-status-pill">
+                  <span className="radar-live-dot" /> Live Street Grid
+                </span>
+              </h1>
+              <p>
+                Pune Tech Corridors · Metro Line 3 Transit · SHA-256 Commit-Verified Evidence
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* TWO-WAY MARKETPLACE TOGGLE: Candidate vs Recruiter */}
-            <div className="radar-perspective-toggle">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Perspective Segmented Switch (Apple Style) */}
+            <div className="segmented-pill-switch">
               <button
                 type="button"
-                className={`radar-perspective-btn ${perspective === 'candidate' ? 'active' : ''}`}
+                className={`segmented-pill-btn ${perspective === 'candidate' ? 'active' : ''}`}
                 onClick={() => setPerspective('candidate')}
               >
-                👨‍💻 Candidate Radar
+                👨‍💻 Candidates
               </button>
               <button
                 type="button"
-                className={`radar-perspective-btn ${perspective === 'recruiter' ? 'active' : ''}`}
+                className={`segmented-pill-btn ${perspective === 'recruiter' ? 'active' : ''}`}
                 onClick={() => setPerspective('recruiter')}
               >
-                🏢 Recruiter Talent Scout
+                🏢 Recruiters
               </button>
             </div>
 
             <button
               type="button"
-              className="radar-locate-btn"
-              onClick={handleDetectLocation}
-              disabled={locating}
-              title="Detect live GPS coordinates with Wi-Fi triangulation"
-            >
-              {locating ? 'Scanning GPS...' : '📍 Detect Live GPS'}
-            </button>
-
-            <button
-              type="button"
-              className="b sm g"
-              onClick={() => setShowLocationPicker(true)}
-              style={{ fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
-              title="Select your Pune neighborhood, college campus or manual pin"
-            >
-              <span>Origin:</span>
-              <strong style={{ color: '#e8803f' }}>{userCoords.name?.split('(')[0]?.trim() || 'Pune'}</strong>
-              <span>▾</span>
-            </button>
-
-            <button
-              type="button"
-              className="b sm g"
+              className="radar-dropdown-trigger"
               onClick={() => setShowKeyModal(true)}
               style={{ fontSize: '0.78rem' }}
+              title="Configure Enterprise Mapbox or Google License"
             >
-              ⚙️ {customApiKey ? 'Enterprise Key Active ✓' : 'Add API Key'}
+              ⚙️ {customApiKey ? 'License Active ✓' : 'Enterprise Key'}
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* CANDIDATE CONTROLS */}
-        {perspective === 'candidate' ? (
-          <div className="radar-mode-selector-card">
-            <div className="radar-mode-toggle-group">
+        {/* ── 2. UNIFIED FLOATING CONTROL ISLAND (LINEAR-STYLE TOOLBAR) ──── */}
+        <div ref={toolbarRef} className="radar-toolbar">
+          {/* Quick Search Input */}
+          <div className="radar-search-island">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='Search verified roles, skills, or companies (e.g. "React", "Python", "Docker", "Druva")...'
+            />
+            {searchQuery && (
               <button
                 type="button"
-                className={`radar-mode-btn ${browsingScope === 'city' ? 'active' : ''}`}
-                onClick={() => {
-                  setBrowsingScope('city')
-                  setWorkModeFilter('ALL')
-                }}
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                title="Clear filter"
               >
-                📍 In My City ({selectedHub === 'pune' ? 'Pune' : selectedHub.toUpperCase()} / Local Commute)
+                ✕
               </button>
-              <button
-                type="button"
-                className={`radar-mode-btn ${browsingScope === 'global' ? 'active' : ''}`}
-                onClick={() => {
-                  setBrowsingScope('global')
-                  setWorkModeFilter('Remote')
-                  setSelectedSezCorridor('all')
-                }}
-              >
-                🌐 Anywhere (Best Skill Match — Nationwide & Remote)
-              </button>
-            </div>
+            )}
+          </div>
 
-            {/* LIVE ENTERPRISE SEARCH BAR (Adzuna / JSearch / Live Keyword Pipeline) */}
-            <div className="radar-search-container">
-              <span className="radar-search-icon">🔍</span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Search live roles, verified skills, or companies (e.g. "React", "Python", "Docker", "DevOps", "AI", "Hinjawadi", "Druva")...'
-                className="radar-search-input"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  className="radar-search-clear"
-                  onClick={() => setSearchQuery('')}
-                  title="Clear search filter"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+          {/* DROPDOWN 1: Commute Origin & Campus Picker */}
+          <div className="dropdown-anchor-wrapper">
+            <button
+              type="button"
+              className={`radar-dropdown-trigger ${activeDropdown === 'origin' ? 'open active' : ''}`}
+              onClick={() => setActiveDropdown(activeDropdown === 'origin' ? null : 'origin')}
+            >
+              <span>📍 Origin:</span>
+              <strong style={{ color: '#fff' }}>{userCoords.name?.split('(')[0]?.trim() || 'Pune'}</strong>
+              <span className="trigger-chevron">▼</span>
+            </button>
 
-            {/* SEZ Corridors & Tier Filters Row */}
-            <div className="radar-subfilters-row">
-              {browsingScope === 'city' && (
-                <div className="radar-pill-group">
-                  <span className="radar-label">Tech Hub:</span>
-                  {Object.entries(SAMPLE_TECH_HUBS).map(([key, hub]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`radar-pill-btn ${selectedHub === key ? 'active' : ''}`}
-                      onClick={() => handleHubSelect(key)}
-                    >
-                      {hub.city}
-                    </button>
-                  ))}
+            {activeDropdown === 'origin' && (
+              <div className="radar-popover-panel" style={{ width: 320 }}>
+                <div className="popover-header">
+                  <span>Commute Origin Point</span>
+                  <span style={{ color: '#e8803f' }}>Auto-Recalculate</span>
                 </div>
-              )}
 
-              {/* Organization Tier (SMB Fast-Track vs Enterprise MNCs) */}
-              <div className="tier-filter-toggle">
-                <button
-                  type="button"
-                  className={`tier-toggle-btn ${tierFilter === 'ALL' ? 'active' : ''}`}
-                  onClick={() => setTierFilter('ALL')}
-                >
-                  All Organizations
-                </button>
-                <button
-                  type="button"
-                  className={`tier-toggle-btn ${tierFilter === 'smb' ? 'active' : ''}`}
-                  onClick={() => setTierFilter('smb')}
-                  title="Direct fast-track technical interview for verified ProofPass engineers"
-                >
-                  ⚡ SMBs & Startups
-                </button>
-                <button
-                  type="button"
-                  className={`tier-toggle-btn ${tierFilter === 'enterprise' ? 'active' : ''}`}
-                  onClick={() => setTierFilter('enterprise')}
-                >
-                  🏢 Enterprise MNCs
-                </button>
-              </div>
-
-              {/* Commute Radius Filter */}
-              {browsingScope === 'city' && (
-                <div className="radar-pill-group">
-                  <span className="radar-label">Radius:</span>
-                  {[
-                    { label: 'All City Hubs', val: 'all' },
-                    { label: '< 5 km', val: '5' },
-                    { label: '< 15 km', val: '15' },
-                    { label: '< 30 km', val: '30' }
-                  ].map((r) => (
-                    <button
-                      key={r.val}
-                      type="button"
-                      className={`radar-pill-btn ${radiusFilter === r.val ? 'active' : ''}`}
-                      onClick={() => setRadiusFilter(r.val)}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Work Mode Filter */}
-              <div className="radar-pill-group">
-                <span className="radar-label">Work Mode:</span>
-                {['ALL', 'Onsite', 'Hybrid', 'Remote'].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`radar-pill-btn ${workModeFilter === m ? 'active' : ''}`}
-                    onClick={() => setWorkModeFilter(m)}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* SEZ GEOFENCING SELECTOR (Pune IT Corridors) */}
-            {selectedHub === 'pune' && browsingScope === 'city' && (
-              <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #282624' }}>
-                <span className="radar-label" style={{ display: 'block', marginBottom: '6px' }}>
-                  🗺️ Pune IT Corridors (Geofenced SEZ Zones):
-                </span>
-                <div className="sez-selector-row">
+                <div style={{ marginBottom: '8px' }}>
                   <button
                     type="button"
-                    className={`sez-pill-btn ${selectedSezCorridor === 'all' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedSezCorridor('all')
-                      if (mapInstanceRef.current) {
-                        mapInstanceRef.current.flyTo([userCoords.lat, userCoords.lng], 12.2)
-                      }
-                    }}
+                    className="popover-option-btn"
+                    style={{ background: 'rgba(56, 189, 248, 0.1)', color: '#38bdf8', marginBottom: '6px' }}
+                    onClick={handleDetectLocation}
                   >
-                    📍 All Corridors ({filteredCompanies.length})
+                    <span>{locating ? '🛰️ Triangulating GPS...' : '📍 Detect Live GPS (Wi-Fi)'}</span>
+                    <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>±15m accuracy</span>
                   </button>
-                  {PUNE_SEZ_CORRIDORS.map((sez) => (
-                    <button
-                      key={sez.id}
-                      type="button"
-                      className={`sez-pill-btn ${selectedSezCorridor === sez.id ? 'active' : ''}`}
-                      onClick={() => {
-                        setSelectedSezCorridor(sez.id)
-                        if (mapInstanceRef.current) {
-                          mapInstanceRef.current.flyTo(sez.center, 13.8)
-                        }
-                      }}
-                      style={selectedSezCorridor === sez.id ? { borderColor: sez.color } : {}}
-                    >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: sez.color }} />
-                      {sez.name}
-                    </button>
-                  ))}
+                </div>
+
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {PUNE_NEIGHBORHOOD_ORIGINS.map((orig) => {
+                    const isSelected = userCoords.lat === orig.lat && userCoords.lng === orig.lng
+                    return (
+                      <button
+                        key={orig.id}
+                        type="button"
+                        className={`popover-option-btn ${isSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          setUserCoords(orig)
+                          setActiveDropdown(null)
+                          if (mapInstanceRef.current) {
+                            mapInstanceRef.current.flyTo([orig.lat, orig.lng], 13.8, { duration: 0.8 })
+                          }
+                        }}
+                      >
+                        <div>
+                          <div>{orig.name}</div>
+                          <div className="popover-sublabel">{orig.neighborhood}</div>
+                        </div>
+                        {isSelected && <span style={{ color: '#e8803f' }}>✓</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.72rem', color: '#9c958f' }}>
+                  💡 Tip: Drag the orange pin directly on the map to set any custom point!
                 </div>
               </div>
             )}
           </div>
-        ) : (
-          /* RECRUITER TALENT SCOUT CONTROLS */
-          <div className="radar-mode-selector-card" style={{ borderLeft: '4px solid #38bdf8' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
-                <span className="k m" style={{ color: '#38bdf8' }}>B2B TALENT ACQUISITION ENGINE</span>
-                <h3 style={{ margin: '3px 0', fontSize: '1.05rem', color: '#fff' }}>
-                  Scouting Cryptographically Verified Candidates in Pune
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted)' }}>
-                  All candidates feature SHA-256 Git blame tamper verification. Direct interview scheduling bypasses resume screening.
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span className="radar-live-badge" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', borderColor: 'rgba(56, 189, 248, 0.4)' }}>
-                  {VERIFIED_TALENT_PROFILES.length} VERIFIED CANDIDATES FOUND
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
 
-        {/* MAIN SPLIT GRID: MAP VIEWPORT + SIDEBAR LIST */}
+          {/* DROPDOWN 2: SEZ IT Corridors */}
+          <div className="dropdown-anchor-wrapper">
+            <button
+              type="button"
+              className={`radar-dropdown-trigger ${activeDropdown === 'corridor' ? 'open active' : ''} ${selectedSezCorridor !== 'all' ? 'active' : ''}`}
+              onClick={() => setActiveDropdown(activeDropdown === 'corridor' ? null : 'corridor')}
+            >
+              <span>🗺️ Corridor:</span>
+              <strong style={{ color: '#fff' }}>
+                {selectedSezCorridor === 'all'
+                  ? 'All Pune SEZs'
+                  : PUNE_SEZ_CORRIDORS.find((c) => c.id === selectedSezCorridor)?.name || 'Corridor'}
+              </strong>
+              <span className="trigger-chevron">▼</span>
+            </button>
+
+            {activeDropdown === 'corridor' && (
+              <div className="radar-popover-panel" style={{ width: 300 }}>
+                <div className="popover-header">
+                  <span>Pune Geofenced SEZ Zones</span>
+                </div>
+
+                <button
+                  type="button"
+                  className={`popover-option-btn ${selectedSezCorridor === 'all' ? 'selected' : ''}`}
+                  onClick={() => {
+                    setSelectedSezCorridor('all')
+                    setActiveDropdown(null)
+                    if (mapInstanceRef.current) {
+                      mapInstanceRef.current.flyTo([userCoords.lat, userCoords.lng], 12.2)
+                    }
+                  }}
+                >
+                  <span>📍 All Pune Corridors</span>
+                  <span style={{ fontSize: '0.72rem', color: '#9c958f' }}>({processedCompanies.length} jobs)</span>
+                </button>
+
+                {PUNE_SEZ_CORRIDORS.map((sez) => {
+                  const isSelected = selectedSezCorridor === sez.id
+                  return (
+                    <button
+                      key={sez.id}
+                      type="button"
+                      className={`popover-option-btn ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedSezCorridor(sez.id)
+                        setActiveDropdown(null)
+                        if (mapInstanceRef.current) {
+                          mapInstanceRef.current.flyTo(sez.center, 13.8)
+                        }
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: sez.color }} />
+                        <div>
+                          <div>{sez.name}</div>
+                          <div className="popover-sublabel">{sez.subtitle}</div>
+                        </div>
+                      </div>
+                      {isSelected && <span style={{ color: '#e8803f' }}>✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* DROPDOWN 3: Multi-Filter Popover (Radius, Tier & Work Mode) */}
+          <div className="dropdown-anchor-wrapper">
+            <button
+              type="button"
+              className={`radar-dropdown-trigger ${activeDropdown === 'filter' ? 'open active' : ''} ${activeFiltersCount > 0 ? 'active' : ''}`}
+              onClick={() => setActiveDropdown(activeDropdown === 'filter' ? null : 'filter')}
+            >
+              <span>⚙️ Filters</span>
+              {activeFiltersCount > 0 && (
+                <span style={{ background: '#b54610', color: '#fff', fontSize: '0.68rem', padding: '1px 5px', borderRadius: '10px' }}>
+                  {activeFiltersCount}
+                </span>
+              )}
+              <span className="trigger-chevron">▼</span>
+            </button>
+
+            {activeDropdown === 'filter' && (
+              <div className="radar-popover-panel" style={{ width: 320 }}>
+                <div className="popover-header">
+                  <span>Filter Opportunities</span>
+                  {activeFiltersCount > 0 && (
+                    <button
+                      type="button"
+                      style={{ background: 'transparent', border: 'none', color: '#e8803f', cursor: 'pointer', fontSize: '0.7rem' }}
+                      onClick={() => {
+                        setRadiusFilter('all')
+                        setWorkModeFilter('ALL')
+                        setTierFilter('ALL')
+                      }}
+                    >
+                      Reset All
+                    </button>
+                  )}
+                </div>
+
+                {/* Organization Tier */}
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#9c958f', marginBottom: '6px' }}>Organization Type:</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[
+                      { key: 'ALL', label: 'All' },
+                      { key: 'smb', label: '⚡ Fast-Track SMBs' },
+                      { key: 'enterprise', label: '🏢 Enterprise' }
+                    ].map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        className={`popover-option-btn ${tierFilter === t.key ? 'selected' : ''}`}
+                        style={{ padding: '6px 8px', fontSize: '0.75rem', justifyContent: 'center' }}
+                        onClick={() => setTierFilter(t.key)}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Work Mode */}
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '0.74rem', color: '#9c958f', marginBottom: '6px' }}>Work Mode:</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {['ALL', 'Onsite', 'Hybrid', 'Remote'].map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        className={`popover-option-btn ${workModeFilter === m ? 'selected' : ''}`}
+                        style={{ padding: '6px 8px', fontSize: '0.75rem', justifyContent: 'center' }}
+                        onClick={() => setWorkModeFilter(m)}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Commute Radius */}
+                <div>
+                  <div style={{ fontSize: '0.74rem', color: '#9c958f', marginBottom: '6px' }}>Commute Distance:</div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[
+                      { key: 'all', label: 'All Pune' },
+                      { key: '5', label: '< 5 km' },
+                      { key: '15', label: '< 15 km' },
+                      { key: '30', label: '< 30 km' }
+                    ].map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        className={`popover-option-btn ${radiusFilter === r.key ? 'selected' : ''}`}
+                        style={{ padding: '6px 8px', fontSize: '0.75rem', justifyContent: 'center' }}
+                        onClick={() => setRadiusFilter(r.key)}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── 3. MAIN SPLIT GRID: MAP VIEWPORT + SIDEBAR LIST ────────────── */}
         <div className="radar-grid">
           {/* LEFT: LIVE LEAFLET MAP VIEWPORT */}
           <div className="radar-viewport-container">
-            <div className="radar-viewport-header">
-              <div className="radar-hud-tag">
-                {perspective === 'candidate'
-                  ? browsingScope === 'city'
-                    ? `MAP: ${SAMPLE_TECH_HUBS[selectedHub]?.name || 'Local'} (${filteredCompanies.length} OPENINGS)`
-                    : 'MAP: Nationwide & Remote (India Grid)'
-                  : `RECRUITER SCOUT: PUNE CORRIDORS (${VERIFIED_TALENT_PROFILES.length} VERIFIED TALENT)`}
+            {/* Top Floating Controls */}
+            <div className="radar-floating-hud-top">
+              <div className="hud-capsule">
+                <span>📍</span>
+                <span>
+                  {perspective === 'candidate'
+                    ? `${filteredCompanies.length} Verified Openings Mapped`
+                    : `${VERIFIED_TALENT_PROFILES.length} Verified Candidates Mapped`}
+                </span>
               </div>
 
-              {/* MAP THEME SWITCHER */}
-              <div className="radar-map-theme-toggles">
+              {/* Theme Switcher */}
+              <div className="hud-theme-picker">
                 <button
                   type="button"
-                  className={`theme-toggle-btn ${mapTheme === 'dark' ? 'active' : ''}`}
+                  className={`hud-theme-btn ${mapTheme === 'dark' ? 'active' : ''}`}
                   onClick={() => setMapTheme('dark')}
-                  title="Dark Tech Street Map (OpenStreetMap with Zero Watermark)"
+                  title="Dark Tech Basemap"
                 >
-                  🌙 Dark Tech
+                  🌙 Dark
                 </button>
                 <button
                   type="button"
-                  className={`theme-toggle-btn ${mapTheme === 'streets' ? 'active' : ''}`}
+                  className={`hud-theme-btn ${mapTheme === 'streets' ? 'active' : ''}`}
                   onClick={() => setMapTheme('streets')}
-                  title="Daylight Streets Map (Google Maps Style)"
+                  title="Daylight Streets"
                 >
                   ☀️ Streets
                 </button>
                 <button
                   type="button"
-                  className={`theme-toggle-btn ${mapTheme === 'satellite' ? 'active' : ''}`}
+                  className={`hud-theme-btn ${mapTheme === 'satellite' ? 'active' : ''}`}
                   onClick={() => setMapTheme('satellite')}
                   title="ESRI Satellite Imagery"
                 >
@@ -954,56 +955,37 @@ export default function JobRadarMap() {
               </div>
             </div>
 
-            {/* Map Container */}
+            {/* Map Element */}
             <div ref={mapContainerRef} className="leaflet-map-element" />
 
-            {/* Bottom HUD: Real-time Transit Summary (Candidate mode) */}
+            {/* Bottom Floating Transit HUD */}
             {perspective === 'candidate' && selectedCompany && selectedCompany.workMode !== 'Remote' && (
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 12,
-                  left: 12,
-                  right: 12,
-                  background: 'rgba(18, 17, 16, 0.92)',
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(232, 128, 63, 0.4)',
-                  borderRadius: '6px',
-                  padding: '8px 14px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  zIndex: 500,
-                  fontSize: '0.78rem',
-                  color: '#fff',
-                  flexWrap: 'wrap',
-                  gap: '8px'
-                }}
-              >
+              <div className="radar-floating-transit-hud">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ color: '#e8803f', fontWeight: 700 }}>⚡ Transit Corridor to {selectedCompany.name}:</span>
+                  <strong style={{ color: '#e8803f' }}>⚡ Commute to {selectedCompany.name}:</strong>
                   <span style={{ color: '#38bdf8' }}>{selectedCompany.transit?.travelTimeMinutes || 20}m commute</span>
-                  <span style={{ color: 'var(--muted)' }}>via {selectedCompany.transit?.corridorName || 'City Express'}</span>
+                  <span style={{ color: '#9c958f' }}>via {selectedCompany.transit?.corridorName || 'City Express'}</span>
                 </div>
-                <div style={{ color: '#a3e635', fontFamily: 'monospace' }}>
-                  {selectedCompany.transit?.metroLine || 'Metro Line Connected'}
+                <div style={{ color: '#4ade80', fontFamily: 'monospace' }}>
+                  {selectedCompany.transit?.metroLine || 'Pune Metro Line 3 Connected'}
                 </div>
               </div>
             )}
           </div>
 
-          {/* RIGHT: OPPORTUNITY CARDS OR RECRUITER TALENT LIST */}
-          <div className="radar-listings-scroll" style={{ maxHeight: 600, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* RIGHT: OPPORTUNITY CARDS OR RECRUITER LIST */}
+          <div className="radar-listings-scroll">
             {perspective === 'candidate' ? (
-              // CANDIDATE VIEW: JOB OPENINGS
               filteredCompanies.length === 0 ? (
                 <div className="radar-empty-state">
                   <h3>No opportunities found</h3>
-                  <p>Try expanding your radius or changing the work mode filter.</p>
+                  <p>Try clearing your search query or expanding the commute radius filter.</p>
                   <button
                     type="button"
-                    className="b sm"
+                    className="radar-action-btn"
+                    style={{ margin: '0 auto' }}
                     onClick={() => {
+                      setSearchQuery('')
                       setRadiusFilter('all')
                       setWorkModeFilter('ALL')
                       setTierFilter('ALL')
@@ -1028,11 +1010,11 @@ export default function JobRadarMap() {
                           mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14, { duration: 0.8 })
                         }
                       }}
-                      style={isSmb ? { borderLeft: '3.5px solid #fbbf24' } : {}}
+                      style={isSmb ? { borderLeft: '3px solid #fbbf24' } : {}}
                     >
                       <div className="radar-comp-top-row">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ position: 'relative', width: 38, height: 38, flexShrink: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div className="radar-entity-frame">
                             <img
                               src={`https://logo.clearbit.com/${comp.domain}`}
                               alt={comp.name}
@@ -1044,24 +1026,18 @@ export default function JobRadarMap() {
                             <div
                               className="radar-avatar-badge"
                               style={{
-                                background: `${comp.badgeColor}22`,
-                                borderColor: comp.badgeColor,
-                                color: comp.badgeColor,
-                                width: '100%',
-                                height: '100%',
-                                position: 'absolute',
-                                top: 0,
-                                left: 0,
-                                zIndex: 0
+                                background: `${comp.badgeColor}25`,
+                                color: comp.badgeColor
                               }}
                             >
                               {comp.logo}
                             </div>
                           </div>
+
                           <div>
                             <h3 className="radar-comp-name">
                               {comp.name}
-                              <span style={{ color: '#22c55e', marginLeft: '6px' }} title="Verified Corporate Opening">
+                              <span style={{ color: '#4ade80', fontSize: '0.85rem' }} title="Verified Corporate Opening">
                                 ✓
                               </span>
                             </h3>
@@ -1089,7 +1065,7 @@ export default function JobRadarMap() {
                       </div>
 
                       <div className="radar-role-title">{comp.roleTitle}</div>
-                      <div style={{ fontSize: '0.74rem', color: '#e8803f', fontFamily: 'var(--mono)', marginBottom: '6px' }}>
+                      <div style={{ fontSize: '0.74rem', color: '#e8803f', fontFamily: 'monospace', marginBottom: '6px' }}>
                         {comp.opportunityType}
                       </div>
 
@@ -1101,14 +1077,14 @@ export default function JobRadarMap() {
 
                       {/* Commute Transit Pill */}
                       {comp.workMode !== 'Remote' && comp.transit && (
-                        <div style={{ marginBottom: '10px' }}>
+                        <div style={{ marginBottom: '8px' }}>
                           <span className="radar-transit-badge">
                             ⚡ {comp.transit.travelTimeMinutes} mins · {comp.transit.transitType}
                           </span>
                         </div>
                       )}
 
-                      {/* Skill verification pills (Click unverified to open Proof-Gap Drawer) */}
+                      {/* Skill verification pills */}
                       <div className="radar-skill-tags">
                         {comp.requiredSkills.map((sk) => {
                           const isVerified = verifiedSkillSet.has(sk.toLowerCase())
@@ -1138,7 +1114,7 @@ export default function JobRadarMap() {
                         })}
                       </div>
 
-                      <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '0 0 12px', lineHeight: 1.4 }}>
+                      <p style={{ fontSize: '0.78rem', color: '#9c958f', margin: '0 0 14px', lineHeight: 1.45 }}>
                         {comp.description}
                       </p>
 
@@ -1159,12 +1135,11 @@ export default function JobRadarMap() {
                           href={comp.officialUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="b sm g"
-                          style={{ padding: '8px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', textDecoration: 'none' }}
+                          className="radar-secondary-link"
                           onClick={(e) => e.stopPropagation()}
-                          title="Verify on official corporate career site"
+                          title="Verify on official corporate career portal"
                         >
-                          Official Site ↗
+                          Official Portal ↗
                         </a>
                       </div>
                     </div>
@@ -1172,7 +1147,7 @@ export default function JobRadarMap() {
                 })
               )
             ) : (
-              // RECRUITER TALENT SCOUT VIEW: VERIFIED APPLICANTS
+              // Recruiter View: Verified Candidates
               VERIFIED_TALENT_PROFILES.map((cand) => {
                 const isSelected = selectedCandidate?.id === cand.id
                 return (
@@ -1190,20 +1165,18 @@ export default function JobRadarMap() {
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <strong style={{ color: '#fff', fontSize: '0.94rem' }}>{cand.codeName}</strong>
-                          <span style={{ fontSize: '0.68rem', background: 'rgba(34, 197, 94, 0.15)', color: '#22c55e', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
-                            SHA-256 SEAL VALID ✓
+                          <span style={{ fontSize: '0.68rem', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                            SHA-256 VALID ✓
                           </span>
                         </div>
-                        <div style={{ fontSize: '0.76rem', color: 'var(--muted)', marginTop: '2px' }}>
+                        <div style={{ fontSize: '0.76rem', color: '#9c958f', marginTop: '2px' }}>
                           📍 {cand.neighborhood} · <strong style={{ color: '#38bdf8' }}>{cand.distanceToClientKm} km away</strong>
                         </div>
                       </div>
 
-                      <div style={{ textAlign: 'right' }}>
-                        <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'monospace' }}>
-                          {cand.matchToHiringNeeds}% FIT
-                        </span>
-                      </div>
+                      <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#38bdf8', fontFamily: 'monospace' }}>
+                        {cand.matchToHiringNeeds}% FIT
+                      </span>
                     </div>
 
                     <div style={{ fontSize: '0.84rem', fontWeight: 600, color: '#e8803f', marginBottom: '6px' }}>
@@ -1222,19 +1195,17 @@ export default function JobRadarMap() {
                       ))}
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                      <button
-                        type="button"
-                        className="radar-action-btn"
-                        style={{ flex: 1, background: '#0284c7', borderColor: '#0284c7' }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDispatchInterviewInvite(cand)
-                        }}
-                      >
-                        ⚡ Dispatch Direct Interview Invite
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="radar-action-btn"
+                      style={{ width: '100%', background: 'linear-gradient(180deg, #0284c7, #0369a1)', borderColor: '#0284c7' }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDispatchInterviewInvite(cand)
+                      }}
+                    >
+                      ⚡ Dispatch Direct Interview Invite
+                    </button>
                   </div>
                 )
               })
@@ -1243,9 +1214,9 @@ export default function JobRadarMap() {
         </div>
       </div>
 
-      {/* ── MODALS & DRAWERS ──────────────────────────────────────────────── */}
+      {/* ── 4. DRAWERS & MODALS ─────────────────────────────────────────── */}
 
-      {/* 1. CRYPTOGRAPHIC PROOF-GAP RESOLUTION DRAWER */}
+      {/* Proof-Gap Drawer */}
       {proofGapItem && (
         <div className="radar-modal-overlay" onClick={() => setProofGapItem(null)}>
           <div className="proofgap-drawer-box" onClick={(e) => e.stopPropagation()}>
@@ -1253,14 +1224,14 @@ export default function JobRadarMap() {
             <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
               Bridge Skill Gap: {proofGapItem.skill}
             </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 14px' }}>
+            <p style={{ fontSize: '0.84rem', color: '#9c958f', margin: '0 0 14px' }}>
               ProofPass scanned your linked GitHub repositories and detected verifiable commit evidence authored by you matching this requirement.
             </p>
 
             <div className="proofgap-commit-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                 <span style={{ color: '#e8803f' }}>Repository: {proofGapItem.evidence.repoName}</span>
-                <span style={{ color: 'var(--muted)' }}>{proofGapItem.evidence.date}</span>
+                <span style={{ color: '#9c958f' }}>{proofGapItem.evidence.date}</span>
               </div>
               <div style={{ color: '#fff', fontWeight: 600, marginBottom: '6px' }}>
                 Commit {proofGapItem.evidence.commitHash}: {proofGapItem.evidence.commitMessage}
@@ -1275,14 +1246,14 @@ export default function JobRadarMap() {
             </div>
 
             {proofGapSigned ? (
-              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#22c55e', fontSize: '0.9rem', fontWeight: 600 }}>
+              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#4ade80', fontSize: '0.9rem', fontWeight: 600 }}>
                 ✓ Commit Evidence Signed & Cryptographically Stamped into Passport! Skill Verified!
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  className="b sm"
+                  className="radar-action-btn"
                   style={{ flex: 1 }}
                   onClick={handleSignProofGapEvidence}
                 >
@@ -1290,7 +1261,7 @@ export default function JobRadarMap() {
                 </button>
                 <button
                   type="button"
-                  className="b sm g"
+                  className="radar-secondary-link"
                   onClick={() => setProofGapItem(null)}
                 >
                   Cancel
@@ -1301,7 +1272,7 @@ export default function JobRadarMap() {
         </div>
       )}
 
-      {/* 2. RECRUITER DIRECT INTERVIEW INVITE MODAL */}
+      {/* Recruiter Direct Interview Invite Modal */}
       {interviewInviteCandidate && (
         <div className="radar-modal-overlay" onClick={() => setInterviewInviteCandidate(null)}>
           <div className="radar-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1309,42 +1280,42 @@ export default function JobRadarMap() {
             <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
               Dispatch Direct Interview Invite to {interviewInviteCandidate.codeName}
             </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 14px' }}>
+            <p style={{ fontSize: '0.84rem', color: '#9c958f', margin: '0 0 14px' }}>
               Because ProofPass cryptographically verifies code authorship at the commit level, this candidate qualifies for immediate technical interview scheduling.
             </p>
 
             <div style={{ background: '#121110', border: '1px solid #2d2b29', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '0.82rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--muted)' }}>Candidate Location:</span>
+                <span style={{ color: '#9c958f' }}>Candidate Location:</span>
                 <span style={{ color: '#fff' }}>{interviewInviteCandidate.neighborhood}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <span style={{ color: 'var(--muted)' }}>Proximity to Office:</span>
+                <span style={{ color: '#9c958f' }}>Proximity to Office:</span>
                 <span style={{ color: '#38bdf8' }}>{interviewInviteCandidate.distanceToClientKm} km</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--muted)' }}>Cryptographic Seal:</span>
-                <span style={{ color: '#22c55e', fontFamily: 'monospace' }}>VALIDATED (TAMPER-FREE)</span>
+                <span style={{ color: '#9c958f' }}>Cryptographic Seal:</span>
+                <span style={{ color: '#4ade80', fontFamily: 'monospace' }}>VALIDATED (TAMPER-FREE)</span>
               </div>
             </div>
 
             {interviewInviteSuccess ? (
-              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#22c55e', fontSize: '0.9rem', fontWeight: 600 }}>
+              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#4ade80', fontSize: '0.9rem', fontWeight: 600 }}>
                 ✓ Direct Interview Invitation Dispatched to Candidate Calendar!
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  className="b sm"
-                  style={{ flex: 1, background: '#0284c7', borderColor: '#0284c7' }}
+                  className="radar-action-btn"
+                  style={{ flex: 1, background: 'linear-gradient(180deg, #0284c7, #0369a1)', borderColor: '#0284c7' }}
                   onClick={confirmDispatchInterview}
                 >
                   ⚡ Send Immediate Interview Invite
                 </button>
                 <button
                   type="button"
-                  className="b sm g"
+                  className="radar-secondary-link"
                   onClick={() => setInterviewInviteCandidate(null)}
                 >
                   Cancel
@@ -1355,56 +1326,52 @@ export default function JobRadarMap() {
         </div>
       )}
 
-      {/* 3. ENTERPRISE API KEY MODAL */}
+      {/* Enterprise API Key Modal */}
       {showKeyModal && (
         <div className="radar-modal-overlay" onClick={() => setShowKeyModal(false)}>
           <div className="radar-modal-box" onClick={(e) => e.stopPropagation()}>
             <span className="k m">ENTERPRISE GEOLOCATION CONFIGURATION</span>
             <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
-              Corporate Map API Key
+              Corporate Map License Key
             </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 16px' }}>
-              ProofPass runs on high-resolution OpenStreetMap & ESRI with <strong>zero watermarks and zero billing</strong>. If deploying for a company with a dedicated Google Maps or Mapbox license, paste your key below:
+            <p style={{ fontSize: '0.84rem', color: '#9c958f', margin: '0 0 16px' }}>
+              ProofPass runs on OpenStreetMap & ESRI with zero watermarks. If deploying for a corporate client with a dedicated Mapbox or Google license, enter your key below:
             </p>
 
             <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '0.75rem', fontFamily: 'var(--mono)', color: '#e8803f', display: 'block', marginBottom: '6px' }}>
-                MAPBOX / GOOGLE MAPS API KEY:
+              <label style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#e8803f', display: 'block', marginBottom: '6px' }}>
+                MAPBOX TOKEN / GOOGLE KEY:
               </label>
               <input
                 type="text"
                 value={customApiKey}
                 onChange={(e) => setCustomApiKey(e.target.value.trim())}
-                placeholder="pk.eyJ1IjoieW91ci11c2VybmFtZSI... or AIzaSy..."
-                style={{ width: '100%', padding: '10px 14px', background: '#121110', border: '1px solid #333', color: '#fff', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.82rem' }}
+                placeholder="pk.eyJ1IjoieW91ci11c2VybmFtZSI..."
+                style={{ width: '100%', padding: '10px 14px', background: '#121110', border: '1px solid #333', color: '#fff', borderRadius: '6px', fontFamily: 'monospace', fontSize: '0.82rem', outline: 'none' }}
               />
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
                 type="button"
-                className="b sm"
+                className="radar-action-btn"
                 style={{ flex: 1 }}
                 onClick={() => handleSaveApiKey(customApiKey)}
               >
-                Save & Apply Key
+                Save & Apply License
               </button>
               {customApiKey && (
                 <button
                   type="button"
-                  className="b sm g"
-                  onClick={() => {
-                    setCustomApiKey('')
-                    handleSaveApiKey('')
-                  }}
-                  title="Remove key and use default OpenStreetMap"
+                  className="radar-secondary-link"
+                  onClick={() => handleSaveApiKey('')}
                 >
-                  Reset to Free Default
+                  Reset
                 </button>
               )}
               <button
                 type="button"
-                className="b sm g"
+                className="radar-secondary-link"
                 onClick={() => setShowKeyModal(false)}
               >
                 Close
@@ -1414,7 +1381,7 @@ export default function JobRadarMap() {
         </div>
       )}
 
-      {/* 4. 1-CLICK PASSPORT APPLICATION MODAL */}
+      {/* 1-Click Passport Application Modal */}
       {applyModalCompany && (
         <div className="radar-modal-overlay" onClick={() => setApplyModalCompany(null)}>
           <div className="radar-modal-box" onClick={(e) => e.stopPropagation()}>
@@ -1422,46 +1389,46 @@ export default function JobRadarMap() {
             <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
               Dispatch Application to {applyModalCompany.name}
             </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 18px' }}>
+            <p style={{ fontSize: '0.84rem', color: '#9c958f', margin: '0 0 18px' }}>
               Your application includes an unforgeable cryptographic seal containing your verified commit evidence.
             </p>
 
             <div style={{ background: '#121110', border: '1px solid #2d2b29', borderRadius: '6px', padding: '14px', marginBottom: '18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.82rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Role:</span>
+                <span style={{ color: '#9c958f' }}>Role:</span>
                 <strong style={{ color: '#fff' }}>{applyModalCompany.roleTitle}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.82rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Official Office:</span>
+                <span style={{ color: '#9c958f' }}>Official Office:</span>
                 <span style={{ color: '#ddd' }}>{applyModalCompany.techPark}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.82rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Physical Address:</span>
-                <span style={{ color: 'var(--muted)', fontSize: '0.75rem', maxWidth: '60%', textAlign: 'right' }}>
+                <span style={{ color: '#9c958f' }}>Physical Address:</span>
+                <span style={{ color: '#9c958f', fontSize: '0.75rem', maxWidth: '60%', textAlign: 'right' }}>
                   {applyModalCompany.address}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.82rem', marginTop: '6px' }}>
-                <span style={{ color: 'var(--muted)' }}>Commute Proximity:</span>
-                <span style={{ color: '#22c55e', fontFamily: 'monospace' }}>
+                <span style={{ color: '#9c958f' }}>Commute Proximity:</span>
+                <span style={{ color: '#4ade80', fontFamily: 'monospace' }}>
                   {applyModalCompany.workMode === 'Remote' ? 'Remote Global' : `${applyModalCompany.distanceKm} km away`}
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
-                <span style={{ color: 'var(--muted)' }}>Passport Seal Status:</span>
+                <span style={{ color: '#9c958f' }}>Passport Seal Status:</span>
                 <span style={{ color: '#e8803f', fontFamily: 'monospace' }}>SHA-256 VERIFIED ✓</span>
               </div>
             </div>
 
             {appliedSuccess ? (
-              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#22c55e', fontSize: '0.9rem', fontWeight: 600 }}>
+              <div style={{ background: 'rgba(34, 197, 94, 0.15)', border: '1px solid rgba(34, 197, 94, 0.4)', borderRadius: '6px', padding: '14px', textAlign: 'center', color: '#4ade80', fontSize: '0.9rem', fontWeight: 600 }}>
                 ✓ Application Dispatched to {applyModalCompany.name} HR Portal!
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button
                   type="button"
-                  className="b sm"
+                  className="radar-action-btn"
                   style={{ flex: 1 }}
                   onClick={confirmDispatchApplication}
                 >
@@ -1469,97 +1436,13 @@ export default function JobRadarMap() {
                 </button>
                 <button
                   type="button"
-                  className="b sm g"
+                  className="radar-secondary-link"
                   onClick={() => setApplyModalCompany(null)}
                 >
                   Cancel
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-      {/* 5. COMMUTE ORIGIN & GPS LOCATION PICKER MODAL */}
-      {showLocationPicker && (
-        <div className="radar-modal-overlay" onClick={() => setShowLocationPicker(false)}>
-          <div className="radar-modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 580 }}>
-            <span className="k m" style={{ color: '#e8803f' }}>COMMUTE ORIGIN & GPS SELECTION</span>
-            <h2 style={{ fontSize: '1.25rem', margin: '6px 0', color: '#fff' }}>
-              Set Your Commute Origin
-            </h2>
-            <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '0 0 14px' }}>
-              Select your exact Pune campus or neighborhood below, or drag the glowing orange marker directly on the live street map to recalculate travel distances.
-            </p>
-
-            <div style={{ marginBottom: '16px' }}>
-              <span className="radar-label" style={{ display: 'block', marginBottom: '8px' }}>
-                Quick Pune Student Campuses & Residential Hubs:
-              </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
-                {PUNE_NEIGHBORHOOD_ORIGINS.map((orig) => {
-                  const isCurrent = userCoords.lat === orig.lat && userCoords.lng === orig.lng
-                  return (
-                    <button
-                      key={orig.id}
-                      type="button"
-                      className="radar-mode-btn"
-                      style={{
-                        padding: '10px 12px',
-                        textAlign: 'left',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        borderColor: isCurrent ? '#e8803f' : undefined,
-                        background: isCurrent ? 'rgba(232, 128, 63, 0.16)' : undefined
-                      }}
-                      onClick={() => {
-                        setUserCoords(orig)
-                        setShowLocationPicker(false)
-                        if (mapInstanceRef.current) {
-                          mapInstanceRef.current.flyTo([orig.lat, orig.lng], 14, { duration: 0.9 })
-                        }
-                      }}
-                    >
-                      <strong style={{ color: isCurrent ? '#e8803f' : '#fff', fontSize: '0.82rem' }}>
-                        {orig.name}
-                      </strong>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '2px' }}>
-                        {orig.neighborhood}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div style={{ background: '#121110', border: '1px solid #2d2b29', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '0.8rem' }}>
-              <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '4px' }}>
-                💡 Tip: You can also drag the orange pin or click anywhere directly on the map!
-              </div>
-              <div style={{ color: 'var(--muted)' }}>
-                Active Origin: <strong style={{ color: '#fff' }}>{userCoords.name}</strong> ({userCoords.lat}, {userCoords.lng})
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                className="b sm"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setShowLocationPicker(false)
-                  handleDetectLocation()
-                }}
-              >
-                🛰️ Force Re-Scan Live GPS
-              </button>
-              <button
-                type="button"
-                className="b sm g"
-                onClick={() => setShowLocationPicker(false)}
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
