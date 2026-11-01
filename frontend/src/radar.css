@@ -1339,44 +1339,7 @@
   margin-bottom: 16px;
 }
 
-/* ── 5. ZERO-OVERLAP APPLE iOS 27 FIXED MODAL SHEETS ──────────────────────── */
-.ios-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  background: rgba(0, 0, 0, 0.68);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  animation: iosBackdropFadeIn 0.22s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@keyframes iosBackdropFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.ios-modal-card {
-  width: 100%;
-  max-width: 540px;
-  background: rgba(22, 20, 19, 0.95);
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.3);
-  position: relative;
-  animation: iosModalSpring 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@keyframes iosModalSpring {
-  from { opacity: 0; transform: scale(0.92) translateY(12px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
+/* ── 5. ZERO-OVERLAP APPLE iOS 27 FIXED MODAL SHEETS (Now handled by native <dialog> JrSheet) ── */
 
 .ios-modal-header {
   display: flex;

@@ -28,6 +28,7 @@ import {
 import '../radar.css'
 import './jr-tokens.css'
 import { getCompanyLogo } from './useLogo.js'
+import JrSheet from './JrSheet.jsx'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -1312,339 +1313,279 @@ export default function JobRadarMap() {
         </div>
       </div>
 
-      {/* ── 3. ZERO-OVERLAP APPLE iOS 27 MODAL SHEETS ────────────────────── */}
+      {/* ── 3. ZERO-OVERLAP NATIVE <dialog> MODAL SHEETS (WP5) ───────────── */}
 
       {/* MODAL 1: COMMUTE ORIGIN & GPS SELECTION */}
-      {activeModal === 'origin' && (
-        <div className="ios-modal-backdrop" onClick={() => setActiveModal(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge">COMMUTE ORIGIN ENGINE</span>
-                <h2 className="ios-modal-title">Select Commute Origin</h2>
-              </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setActiveModal(null)}
-              >
-                ✕
-              </button>
-            </div>
+      <JrSheet
+        open={activeModal === 'origin'}
+        onClose={() => setActiveModal(null)}
+        badge="COMMUTE ORIGIN ENGINE"
+        title="Select Commute Origin"
+      >
+        <p className="ios-modal-desc">
+          Distances, driving times, and transit corridors update live relative to your origin. Choose a Pune campus or let high-accuracy GPS triangulate your exact position.
+        </p>
 
-            <p className="ios-modal-desc">
-              Distances, driving times, and transit corridors update live relative to your origin. Choose a Pune campus or let high-accuracy GPS triangulate your exact position.
-            </p>
-
-            {/* 1-Click GPS Button */}
-            <div style={{ marginBottom: '16px' }}>
-              <button
-                type="button"
-                className={`ios-action-banner-btn ${locating ? 'scanning' : ''}`}
-                onClick={handleDetectLocation}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '1.25rem' }}>{locating ? '🛰️' : '🎯'}</span>
-                  <div style={{ textAlign: 'left' }}>
-                    <div style={{ fontWeight: 600, color: '#fff' }}>
-                      {locating ? 'Triangulating Live Coordinates...' : 'Detect My Exact Live Location'}
-                    </div>
-                    <div style={{ fontSize: '0.72rem', color: '#38bdf8' }}>
-                      Uses HTML5 GPS with authentic IP network fallback
-                    </div>
-                  </div>
+        {/* 1-Click GPS Button */}
+        <div style={{ marginBottom: '16px' }}>
+          <button
+            type="button"
+            className={`ios-action-banner-btn ${locating ? 'scanning' : ''}`}
+            onClick={handleDetectLocation}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.25rem' }}>{locating ? '🛰️' : '🎯'}</span>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontWeight: 600, color: '#fff' }}>
+                  {locating ? 'Triangulating Live Coordinates...' : 'Detect My Exact Live Location'}
                 </div>
-                <span className="banner-chevron">→</span>
-              </button>
+                <div style={{ fontSize: '0.72rem', color: '#38bdf8' }}>
+                  Uses HTML5 GPS with authentic IP network fallback
+                </div>
+              </div>
             </div>
-
-            <div className="ios-preset-label">Quick Pune Student Campuses & Residential Hubs:</div>
-            <div className="ios-origin-grid">
-              {PUNE_NEIGHBORHOOD_ORIGINS.map((orig) => {
-                const isSelected = userCoords.lat === orig.lat && userCoords.lng === orig.lng
-                return (
-                  <button
-                    key={orig.id}
-                    type="button"
-                    className={`ios-origin-tile ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      setUserCoords(orig)
-                      setLocationStatus('custom')
-                      setActiveModal(null)
-                      if (mapInstanceRef.current) {
-                        mapInstanceRef.current.flyTo([orig.lat, orig.lng], 14, { duration: 0.9 })
-                      }
-                    }}
-                  >
-                    <div className="tile-top">
-                      <strong className="tile-name">{orig.name}</strong>
-                      {isSelected && <span className="tile-check">✓</span>}
-                    </div>
-                    <div className="tile-sub">{orig.neighborhood}</div>
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="ios-modal-footer-tip">
-              💡 <strong>Pro-Tip:</strong> You can also drag the glowing blue pin directly on the map or click any street to set a custom origin point!
-            </div>
-          </div>
+            <span className="banner-chevron">→</span>
+          </button>
         </div>
-      )}
+
+        <div className="ios-preset-label">Quick Pune Student Campuses & Residential Hubs:</div>
+        <div className="ios-origin-grid">
+          {PUNE_NEIGHBORHOOD_ORIGINS.map((orig) => {
+            const isSelected = userCoords.lat === orig.lat && userCoords.lng === orig.lng
+            return (
+              <button
+                key={orig.id}
+                type="button"
+                className={`ios-origin-tile ${isSelected ? 'selected' : ''}`}
+                onClick={() => {
+                  setUserCoords(orig)
+                  setLocationStatus('custom')
+                  setActiveModal(null)
+                  if (mapInstanceRef.current) {
+                    mapInstanceRef.current.flyTo([orig.lat, orig.lng], 14, { duration: 0.9 })
+                  }
+                }}
+              >
+                <div className="tile-top">
+                  <strong className="tile-name">{orig.name}</strong>
+                  {isSelected && <span className="tile-check">✓</span>}
+                </div>
+                <div className="tile-sub">{orig.neighborhood}</div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="ios-modal-footer-tip">
+          💡 <strong>Pro-Tip:</strong> You can also drag the glowing blue pin directly on the map or click any street to set a custom origin point!
+        </div>
+      </JrSheet>
 
       {/* MODAL 2: SEZ CORRIDOR GEOFENCING */}
-      {activeModal === 'corridor' && (
-        <div className="ios-modal-backdrop" onClick={() => setActiveModal(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
+      <JrSheet
+        open={activeModal === 'corridor'}
+        onClose={() => setActiveModal(null)}
+        badge="PUNE IT SPECIAL ECONOMIC ZONES"
+        title="Geofence by Tech Corridor"
+      >
+        <p className="ios-modal-desc">
+          Filter opportunities strictly within Pune’s premier IT special economic zones and boundary polygons.
+        </p>
+
+        <div className="ios-corridor-list">
+          <button
+            type="button"
+            className={`ios-corridor-row ${selectedSezCorridor === 'all' ? 'selected' : ''}`}
+            onClick={() => {
+              setSelectedSezCorridor('all')
+              setActiveModal(null)
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '1.2rem' }}>🌐</span>
               <div>
-                <span className="ios-modal-badge">PUNE IT SPECIAL ECONOMIC ZONES</span>
-                <h2 className="ios-modal-title">Geofence by Tech Corridor</h2>
+                <div style={{ fontWeight: 600, color: '#fff' }}>All Pune SEZs & Tech Hubs</div>
+                <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>Includes all tech parks, SMBs, and remote opportunities</div>
               </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setActiveModal(null)}
-              >
-                ✕
-              </button>
             </div>
+            {selectedSezCorridor === 'all' && <span className="tile-check">✓</span>}
+          </button>
 
-            <p className="ios-modal-desc">
-              Filter opportunities strictly within Pune’s premier IT special economic zones and boundary polygons.
-            </p>
-
-            <div className="ios-corridor-list">
+          {PUNE_SEZ_CORRIDORS.map((sez) => {
+            const isSelected = selectedSezCorridor === sez.id
+            return (
               <button
+                key={sez.id}
                 type="button"
-                className={`ios-corridor-row ${selectedSezCorridor === 'all' ? 'selected' : ''}`}
+                className={`ios-corridor-row ${isSelected ? 'selected' : ''}`}
                 onClick={() => {
-                  setSelectedSezCorridor('all')
+                  setSelectedSezCorridor(sez.id)
                   setActiveModal(null)
+                  if (mapInstanceRef.current) {
+                    mapInstanceRef.current.flyTo(sez.center, 13.5, { duration: 0.9 })
+                  }
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '1.2rem' }}>🌐</span>
+                  <span className="corridor-color-dot" style={{ background: sez.color }} />
                   <div>
-                    <div style={{ fontWeight: 600, color: '#fff' }}>All Pune SEZs & Tech Hubs</div>
-                    <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>Includes all tech parks, SMBs, and remote opportunities</div>
+                    <div style={{ fontWeight: 600, color: '#fff' }}>{sez.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>{sez.subtitle}</div>
                   </div>
                 </div>
-                {selectedSezCorridor === 'all' && <span className="tile-check">✓</span>}
+                {isSelected && <span className="tile-check">✓</span>}
               </button>
-
-              {PUNE_SEZ_CORRIDORS.map((sez) => {
-                const isSelected = selectedSezCorridor === sez.id
-                return (
-                  <button
-                    key={sez.id}
-                    type="button"
-                    className={`ios-corridor-row ${isSelected ? 'selected' : ''}`}
-                    onClick={() => {
-                      setSelectedSezCorridor(sez.id)
-                      setActiveModal(null)
-                      if (mapInstanceRef.current) {
-                        mapInstanceRef.current.flyTo(sez.center, 13.5, { duration: 0.9 })
-                      }
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span className="corridor-color-dot" style={{ background: sez.color }} />
-                      <div>
-                        <div style={{ fontWeight: 600, color: '#fff' }}>{sez.name}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>{sez.subtitle}</div>
-                      </div>
-                    </div>
-                    {isSelected && <span className="tile-check">✓</span>}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+            )
+          })}
         </div>
-      )}
+      </JrSheet>
 
       {/* MODAL 3: SMART MULTI-FILTERS */}
-      {activeModal === 'filter' && (
-        <div className="ios-modal-backdrop" onClick={() => setActiveModal(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge">SEARCH CRITERIA</span>
-                <h2 className="ios-modal-title">Opportunity Filters</h2>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {activeFiltersCount > 0 && (
-                  <button
-                    type="button"
-                    className="ios-reset-filters-btn"
-                    onClick={() => {
-                      setRadiusFilter('all')
-                      setWorkModeFilter('ALL')
-                      setTierFilter('ALL')
-                    }}
-                  >
-                    Reset All
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="ios-modal-close-btn"
-                  onClick={() => setActiveModal(null)}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Section: Organization Type */}
-            <div className="filter-group-block">
-              <label className="filter-group-label">Organization Tier:</label>
-              <div className="filter-options-grid three-col">
-                {[
-                  { key: 'ALL', label: 'All Tiers' },
-                  { key: 'smb', label: '⚡ Fast-Track SMBs' },
-                  { key: 'enterprise', label: '🏢 Enterprise MNC' }
-                ].map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    className={`filter-btn ${tierFilter === t.key ? 'active' : ''}`}
-                    onClick={() => setTierFilter(t.key)}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Filter Section: Work Mode */}
-            <div className="filter-group-block">
-              <label className="filter-group-label">Work Mode:</label>
-              <div className="filter-options-grid four-col">
-                {['ALL', 'Onsite', 'Hybrid', 'Remote'].map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`filter-btn ${workModeFilter === m ? 'active' : ''}`}
-                    onClick={() => setWorkModeFilter(m)}
-                  >
-                    {m === 'ALL' ? 'All' : m}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Filter Section: Commute Radius */}
-            <div className="filter-group-block">
-              <label className="filter-group-label">Commute Radius from Origin:</label>
-              <div className="filter-options-grid four-col">
-                {[
-                  { key: 'all', label: 'Anywhere' },
-                  { key: '5', label: '< 5 km' },
-                  { key: '15', label: '< 15 km' },
-                  { key: '30', label: '< 30 km' }
-                ].map((r) => (
-                  <button
-                    key={r.key}
-                    type="button"
-                    className={`filter-btn ${radiusFilter === r.key ? 'active' : ''}`}
-                    onClick={() => setRadiusFilter(r.key)}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginTop: '20px' }}>
+      <JrSheet
+        open={activeModal === 'filter'}
+        onClose={() => setActiveModal(null)}
+        badge="SEARCH CRITERIA"
+        title="Opportunity Filters"
+        headerAction={
+          activeFiltersCount > 0 ? (
+            <button
+              type="button"
+              className="ios-reset-filters-btn"
+              onClick={() => {
+                setRadiusFilter('all')
+                setWorkModeFilter('ALL')
+                setTierFilter('ALL')
+              }}
+            >
+              Reset All
+            </button>
+          ) : null
+        }
+      >
+        {/* Filter Section: Organization Type */}
+        <div className="filter-group-block">
+          <label className="filter-group-label">Organization Tier:</label>
+          <div className="filter-options-grid three-col">
+            {[
+              { key: 'ALL', label: 'All Tiers' },
+              { key: 'smb', label: '⚡ Fast-Track SMBs' },
+              { key: 'enterprise', label: '🏢 Enterprise MNC' }
+            ].map((t) => (
               <button
+                key={t.key}
                 type="button"
-                className="radar-action-btn primary full"
-                onClick={() => setActiveModal(null)}
+                className={`filter-btn ${tierFilter === t.key ? 'active' : ''}`}
+                onClick={() => setTierFilter(t.key)}
               >
-                Apply Filters ({filteredCompanies.length} Mapped)
+                {t.label}
               </button>
-            </div>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Filter Section: Work Mode */}
+        <div className="filter-group-block">
+          <label className="filter-group-label">Work Mode:</label>
+          <div className="filter-options-grid four-col">
+            {['ALL', 'Onsite', 'Hybrid', 'Remote'].map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`filter-btn ${workModeFilter === m ? 'active' : ''}`}
+                onClick={() => setWorkModeFilter(m)}
+              >
+                {m === 'ALL' ? 'All' : m}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter Section: Commute Radius */}
+        <div className="filter-group-block">
+          <label className="filter-group-label">Commute Radius from Origin:</label>
+          <div className="filter-options-grid four-col">
+            {[
+              { key: 'all', label: 'Anywhere' },
+              { key: '5', label: '< 5 km' },
+              { key: '15', label: '< 15 km' },
+              { key: '30', label: '< 30 km' }
+            ].map((r) => (
+              <button
+                key={r.key}
+                type="button"
+                className={`filter-btn ${radiusFilter === r.key ? 'active' : ''}`}
+                onClick={() => setRadiusFilter(r.key)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: '20px' }}>
+          <button
+            type="button"
+            className="radar-action-btn primary full"
+            onClick={() => setActiveModal(null)}
+          >
+            Apply Filters ({filteredCompanies.length} Mapped)
+          </button>
+        </div>
+      </JrSheet>
 
       {/* MODAL 4: ENTERPRISE MAP LICENSE */}
-      {activeModal === 'key' && (
-        <div className="ios-modal-backdrop" onClick={() => setActiveModal(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge">ENTERPRISE GEOLOCATION</span>
-                <h2 className="ios-modal-title">Map License Token</h2>
-              </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setActiveModal(null)}
-              >
-                ✕
-              </button>
-            </div>
+      <JrSheet
+        open={activeModal === 'key'}
+        onClose={() => setActiveModal(null)}
+        badge="ENTERPRISE GEOLOCATION"
+        title="Map License Token"
+      >
+        <p className="ios-modal-desc">
+          ProofPass by default operates on OpenStreetMap and ESRI tiles with zero watermarks. If your enterprise maintains a dedicated Mapbox style or token, insert it below.
+        </p>
 
-            <p className="ios-modal-desc">
-              ProofPass by default operates on OpenStreetMap and ESRI tiles with zero watermarks. If your enterprise maintains a dedicated Mapbox style or token, insert it below.
-            </p>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label className="filter-group-label">Mapbox Access Token (pk.*):</label>
-              <input
-                type="text"
-                value={customApiKey}
-                onChange={(e) => setCustomApiKey(e.target.value.trim())}
-                placeholder="pk.eyJ1IjoibXktdGVhbSIsImEiOiJjb..."
-                className="ios-text-input"
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                className="radar-action-btn primary"
-                style={{ flex: 1 }}
-                onClick={() => handleSaveApiKey(customApiKey)}
-              >
-                Save & Apply License
-              </button>
-              {customApiKey && (
-                <button
-                  type="button"
-                  className="radar-secondary-link"
-                  onClick={() => handleSaveApiKey('')}
-                >
-                  Reset to Free OSM
-                </button>
-              )}
-            </div>
-          </div>
+        <div style={{ marginBottom: '16px' }}>
+          <label className="filter-group-label">Mapbox Access Token (pk.*):</label>
+          <input
+            type="text"
+            value={customApiKey}
+            onChange={(e) => setCustomApiKey(e.target.value.trim())}
+            placeholder="pk.eyJ1IjoibXktdGVhbSIsImEiOiJjb..."
+            className="ios-text-input"
+          />
         </div>
-      )}
 
-      {/* ── 4. CRYPTOGRAPHIC PROOF-GAP RESOLUTION DRAWER ─────────────────── */}
-      {proofGapItem && (
-        <div className="ios-modal-backdrop" onClick={() => setProofGapItem(null)}>
-          <div className="ios-modal-card proofgap-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge" style={{ color: '#e8803f' }}>CRYPTOGRAPHIC PROOF-GAP</span>
-                <h2 className="ios-modal-title">Bridge Skill Gap: {proofGapItem.skill}</h2>
-              </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setProofGapItem(null)}
-              >
-                ✕
-              </button>
-            </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            type="button"
+            className="radar-action-btn primary"
+            style={{ flex: 1 }}
+            onClick={() => handleSaveApiKey(customApiKey)}
+          >
+            Save & Apply License
+          </button>
+          {customApiKey && (
+            <button
+              type="button"
+              className="radar-secondary-link"
+              onClick={() => handleSaveApiKey('')}
+            >
+              Reset to Free OSM
+            </button>
+          )}
+        </div>
+      </JrSheet>
 
+      {/* ── 4. CRYPTOGRAPHIC PROOF-GAP RESOLUTION DRAWER (WP5 Desktop Drawer) ── */}
+      <JrSheet
+        open={Boolean(proofGapItem)}
+        onClose={() => setProofGapItem(null)}
+        placement="right"
+        badge="CRYPTOGRAPHIC PROOF-GAP"
+        title={`Bridge Skill Gap: ${proofGapItem?.skill || ''}`}
+      >
+        {proofGapItem && (
+          <>
             <p className="ios-modal-desc">
               ProofPass inspected your linked Git repositories and identified commit authorship matching this employer requirement.
             </p>
@@ -1689,28 +1630,19 @@ export default function JobRadarMap() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </JrSheet>
 
       {/* ── 5. PASSPORT APPLICATION MODAL ─────────────────────────────────── */}
-      {applyModalCompany && (
-        <div className="ios-modal-backdrop" onClick={() => setApplyModalCompany(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge">CRYPTOGRAPHIC PASSPORT</span>
-                <h2 className="ios-modal-title">Apply to {applyModalCompany.name}</h2>
-              </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setApplyModalCompany(null)}
-              >
-                ✕
-              </button>
-            </div>
-
+      <JrSheet
+        open={Boolean(applyModalCompany)}
+        onClose={() => setApplyModalCompany(null)}
+        badge="CRYPTOGRAPHIC PASSPORT"
+        title={`Apply to ${applyModalCompany?.name || ''}`}
+      >
+        {applyModalCompany && (
+          <>
             <p className="ios-modal-desc">
               Your application includes an unforgeable cryptographic seal validating your commit authorship against this role.
             </p>
@@ -1759,28 +1691,19 @@ export default function JobRadarMap() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </JrSheet>
 
       {/* ── 6. RECRUITER INTERVIEW DISPATCH MODAL ─────────────────────────── */}
-      {interviewInviteCandidate && (
-        <div className="ios-modal-backdrop" onClick={() => setInterviewInviteCandidate(null)}>
-          <div className="ios-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="ios-modal-header">
-              <div>
-                <span className="ios-modal-badge" style={{ color: '#38bdf8' }}>B2B FAST-TRACK RECRUITER</span>
-                <h2 className="ios-modal-title">Invite {interviewInviteCandidate.codeName}</h2>
-              </div>
-              <button
-                type="button"
-                className="ios-modal-close-btn"
-                onClick={() => setInterviewInviteCandidate(null)}
-              >
-                ✕
-              </button>
-            </div>
-
+      <JrSheet
+        open={Boolean(interviewInviteCandidate)}
+        onClose={() => setInterviewInviteCandidate(null)}
+        badge="B2B FAST-TRACK RECRUITER"
+        title={`Invite ${interviewInviteCandidate?.codeName || ''}`}
+      >
+        {interviewInviteCandidate && (
+          <>
             <p className="ios-modal-desc">
               Candidate has commit-level cryptographic verification. Direct technical interview invitation bypasses resume screening.
             </p>
@@ -1823,9 +1746,9 @@ export default function JobRadarMap() {
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </JrSheet>
     </main>
   )
 }
