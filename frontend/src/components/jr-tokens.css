@@ -106,6 +106,37 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* WP4: Responsive Layout */
+.jr-layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.jr-map {
+  position: sticky;
+  top: var(--jr-capsule-h, 72px);
+  height: 42dvh;
+  min-height: 280px;
+  isolation: isolate;
+  border-radius: var(--jr-radius-card, 20px);
+  overflow: hidden;
+  z-index: var(--jr-z-map, 0);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+@media (min-width: 1069px) {
+  .jr-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(380px, 1fr);
+  }
+
+  .jr-map {
+    top: calc(var(--jr-capsule-h, 72px) + 16px);
+    height: calc(100dvh - var(--jr-capsule-h, 72px) - 32px);
+    min-height: 540px;
+  }
+}
+
 /* Global Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   *,

@@ -462,6 +462,25 @@ export default function JobRadarMap() {
     }
   }, [userCoords, selectedCompany, perspective])
 
+  // WP4: ResizeObserver debounced ~100ms calling map.invalidateSize({ animate: false })
+  useEffect(() => {
+    if (!mapContainerRef.current) return
+    let timeoutId = null
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize({ animate: false })
+        }
+      }, 100)
+    })
+    ro.observe(mapContainerRef.current)
+    return () => {
+      ro.disconnect()
+      clearTimeout(timeoutId)
+    }
+  }, [])
+
   // ── LEAFLET MAP & PIN INITIALIZATION ────────────────────────────────────
   useEffect(() => {
     if (!mapContainerRef.current) return
@@ -898,9 +917,9 @@ export default function JobRadarMap() {
         </header>
 
         {/* ── 2. MAIN SPLIT GRID: LEAFLET MAP + JOB CARDS LIST ────────────── */}
-        <div className="radar-grid">
+        <div className="radar-grid jr-layout">
           {/* LEFT: LIVE LEAFLET MAP VIEWPORT */}
-          <div className="radar-viewport-container">
+          <div className="radar-viewport-container jr-map">
             {/* Top Floating Controls on Map */}
             <div className="radar-floating-hud-top">
               <div className="hud-capsule">
@@ -1212,6 +1231,7 @@ export default function JobRadarMap() {
                               setSelectedCompany(comp)
                               if (mapInstanceRef.current && comp.coordinates) {
                                 mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 15, { duration: 0.9 })
+                                mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
                               }
                             }}
                             title="Focus marker on street map"
