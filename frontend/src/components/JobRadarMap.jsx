@@ -26,6 +26,7 @@ import {
   PUNE_NEIGHBORHOOD_ORIGINS
 } from '../data/radarCompanies.js'
 import '../radar.css'
+import './jr-tokens.css'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -771,7 +772,7 @@ export default function JobRadarMap() {
   const activeCorridorObj = PUNE_SEZ_CORRIDORS.find((c) => c.id === selectedSezCorridor)
 
   return (
-    <main id="main" className="dash-page radar-page">
+    <main id="main" className="dash-page radar-page jr-root" data-basemap={mapTheme}>
       <div className="w">
         {/* ── 1. APPLE iOS 27 DYNAMIC ISLAND COMMAND CAPSULE ───────────────── */}
         <header className="ios-dynamic-island-shell">
