@@ -30,6 +30,8 @@ import './jr-tokens.css'
 import { getCompanyLogo } from './useLogo.js'
 import JrSheet from './JrSheet.jsx'
 import JrSegmented from './JrSegmented.jsx'
+import JobCard, { JobCardSkeleton } from './JobCard.jsx'
+import MatchRing from './MatchRing.jsx'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -1077,8 +1079,8 @@ export default function JobRadarMap() {
               filteredCompanies.length === 0 ? (
                 <div className="radar-empty-state">
                   <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🔍</div>
-                  <h3>No opportunities match filters</h3>
-                  <p>Try clearing your keyword search query or resetting the commute distance filter.</p>
+                  <h3>No matches for &ldquo;{searchQuery || 'current filters'}&rdquo;</h3>
+                  <p>Try clearing your keyword search query or resetting the commute distance and tier filters.</p>
                   <button
                     type="button"
                     className="radar-action-btn"
@@ -1095,188 +1097,34 @@ export default function JobRadarMap() {
                   </button>
                 </div>
               ) : (
-                filteredCompanies.map((comp) => {
-                  const isSelected = selectedCompany?.id === comp.id
-                  const isExpanded = expandedCardId === comp.id
-                  const isSmb = comp.tier === 'smb'
-                  const isRemote = comp.workMode === 'Remote'
-
-                  return (
-                    <div
-                      key={comp.id}
-                      className={`radar-company-card ${isSelected ? 'active' : ''} ${isExpanded ? 'is-expanded' : ''} ${isSmb ? 'smb-card' : ''}`}
-                      onClick={() => {
-                        setSelectedCompany(comp)
-                        setExpandedCardId((prev) => (prev === comp.id ? null : comp.id))
-                        if (mapInstanceRef.current && comp.coordinates) {
-                          mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14.5, { duration: 0.8 })
-                        }
-                      }}
-                    >
-                      {/* Compact Impressive Header (Always Visible) */}
-                      <div className="radar-comp-top-row">
-                        <div className="radar-comp-identity">
-                          <div className="radar-entity-frame">
-                            <img
-                              src={getCompanyLogo(comp.domain)}
-                              alt={comp.name}
-                              width="44"
-                              height="44"
-                              loading="lazy"
-                              decoding="async"
-                              className="radar-entity-logo"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none'
-                              }}
-                            />
-                            <div
-                              className="radar-avatar-badge"
-                              style={{
-                                background: `${comp.badgeColor}25`,
-                                color: comp.badgeColor
-                              }}
-                            >
-                              {comp.logo}
-                            </div>
-                          </div>
-
-                          <div className="radar-name-block">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <h3 className="radar-comp-name">{comp.name}</h3>
-                              <span className="corporate-verified-check" title="Verified Corporate Employer">
-                                ✓
-                              </span>
-                            </div>
-                            <div className="radar-role-title-compact">{comp.roleTitle}</div>
-                            <p className="radar-comp-loc">
-                              📍 {comp.techPark} ·{' '}
-                              {isRemote ? (
-                                <span className="remote-pill">🌐 100% Remote</span>
-                              ) : (
-                                <span>🚗 {comp.distanceKm} km · ⏱️ {comp.transit?.travelTimeMinutes || 20}m commute</span>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="radar-match-column">
-                          <div className={`radar-match-badge ${comp.matchScore >= 90 ? 'high' : ''}`}>
-                            {comp.matchScore}% MATCH
-                          </div>
-                          {comp.smbFastTrack && (
-                            <span className="smb-fasttrack-tag" title="Fast-Track: Skip Round 1 resume screening with verified passport">
-                              ⚡ FAST-TRACK
-                            </span>
-                          )}
-                          <div className="card-expand-indicator">
-                            <span>{isExpanded ? 'Hide Details' : 'Details'}</span>
-                            <span className={`expand-chevron ${isExpanded ? 'open' : ''}`}>▾</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Expandable Body: Revealed on Click */}
-                      <div className="card-expandable-content">
-                        {/* Compensation & Work Mode */}
-                        <div className="radar-stipend-row">
-                          <span className="radar-stipend-val">{comp.stipend}</span>
-                          <span className="dot-sep">·</span>
-                          <span className="workmode-text">{comp.workModeDesc}</span>
-                          <span className="dot-sep">·</span>
-                          <span style={{ color: '#e8803f', fontFamily: 'monospace', fontSize: '0.74rem' }}>
-                            {comp.opportunityType}
-                          </span>
-                        </div>
-
-                        {/* Transit Corridor & Metro */}
-                        {!isRemote && comp.transit && (
-                          <div className="radar-transit-pill-row">
-                            <span className="radar-transit-badge">
-                              ⚡ {comp.transit.travelTimeMinutes} mins commute via {comp.transit.corridorName || 'Road'}
-                            </span>
-                            <span className="radar-metro-badge">
-                              🚇 {comp.transit.metroLine || 'Metro Connected'}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Cryptographic Skill Verification Tags */}
-                        <div className="radar-skill-tags">
-                          {comp.requiredSkills.map((sk) => {
-                            const isVerified = verifiedSkillSet.has(sk.toLowerCase())
-                            return isVerified ? (
-                              <span
-                                key={sk}
-                                className="radar-skill-tag verified"
-                                title="Skill cryptographically verified on your passport"
-                              >
-                                ✓ {sk}
-                              </span>
-                            ) : (
-                              <button
-                                key={sk}
-                                type="button"
-                                className="radar-skill-tag clickable-gap"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleOpenProofGap(sk, comp)
-                                }}
-                                title="Click to resolve Proof-Gap: Sign commit evidence & boost match score"
-                              >
-                                ○ {sk}
-                                <span className="radar-gap-hint">+VERIFY</span>
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        {/* Full Role & Team Description */}
-                        <p className="radar-comp-desc">{comp.description}</p>
-
-                        {/* Action Buttons */}
-                        <div className="radar-card-actions">
-                          <button
-                            type="button"
-                            className="radar-action-btn primary"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleApply(comp)
-                            }}
-                          >
-                            🚀 Apply with Passport
-                          </button>
-
-                          <a
-                            href={comp.officialUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="radar-secondary-link"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Verify on official corporate career portal"
-                          >
-                            Official Portal ↗
-                          </a>
-
-                          <button
-                            type="button"
-                            className="radar-secondary-link map-focus-btn"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedCompany(comp)
-                              if (mapInstanceRef.current && comp.coordinates) {
-                                mapInstanceRef.current.flyTo([comp.coordinates.lat, comp.coordinates.lng], 15, { duration: 0.9 })
-                                mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                              }
-                            }}
-                            title="Focus marker on street map"
-                          >
-                            📍 Focus Map
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
+                filteredCompanies.map((comp, idx) => (
+                  <JobCard
+                    key={comp.id}
+                    comp={comp}
+                    index={idx}
+                    isSelected={selectedCompany?.id === comp.id}
+                    isExpanded={expandedCardId === comp.id}
+                    onToggleExpand={(c) => {
+                      setExpandedCardId((prev) => (prev === c.id ? null : c.id))
+                    }}
+                    onSelect={(c) => {
+                      setSelectedCompany(c)
+                      if (mapInstanceRef.current && c.coordinates) {
+                        mapInstanceRef.current.flyTo([c.coordinates.lat, c.coordinates.lng], 14.5, { duration: 0.8 })
+                      }
+                    }}
+                    onApply={handleApply}
+                    onOpenProofGap={handleOpenProofGap}
+                    onFocusMap={(c) => {
+                      setSelectedCompany(c)
+                      if (mapInstanceRef.current && c.coordinates) {
+                        mapInstanceRef.current.flyTo([c.coordinates.lat, c.coordinates.lng], 15, { duration: 0.9 })
+                        mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }
+                    }}
+                    verifiedSkillSet={verifiedSkillSet}
+                  />
+                ))
               )
             ) : (
               // Recruiter View: Verified Candidates
@@ -1308,7 +1156,7 @@ export default function JobRadarMap() {
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                        <span className="cand-fit-badge">{cand.matchToHiringNeeds}% FIT</span>
+                        <MatchRing score={cand.matchToHiringNeeds} size={38} strokeWidth={3.5} />
                         <div className="card-expand-indicator">
                           <span>{isExpanded ? 'Hide' : 'Profile'}</span>
                           <span className={`expand-chevron ${isExpanded ? 'open' : ''}`}>▾</span>
