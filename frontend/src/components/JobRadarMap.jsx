@@ -27,6 +27,7 @@ import {
 } from '../data/radarCompanies.js'
 import '../radar.css'
 import './jr-tokens.css'
+import { getCompanyLogo } from './useLogo.js'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -1064,8 +1065,12 @@ export default function JobRadarMap() {
                         <div className="radar-comp-identity">
                           <div className="radar-entity-frame">
                             <img
-                              src={`https://logo.clearbit.com/${comp.domain}`}
+                              src={getCompanyLogo(comp.domain)}
                               alt={comp.name}
+                              width="44"
+                              height="44"
+                              loading="lazy"
+                              decoding="async"
                               className="radar-entity-logo"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none'
