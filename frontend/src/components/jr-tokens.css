@@ -299,6 +299,207 @@
   transform: scale(1.05);
 }
 
+/* WP2: Command Capsule Polish */
+.jr-sentinel {
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.ios-dynamic-island-shell {
+  position: sticky;
+  top: 0;
+  z-index: var(--jr-z-capsule, 20);
+  padding-top: env(safe-area-inset-top, 0px);
+  transition: box-shadow 0.25s var(--jr-ease);
+}
+
+.ios-dynamic-island-shell.is-scrolled .ios-island-capsule {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65), 0 0 1px rgba(255, 255, 255, 0.22);
+  border-color: var(--jr-glass-line, rgba(255, 255, 255, 0.18));
+}
+
+/* Fluid Expanding Search Island */
+.ios-search-capsule {
+  position: relative;
+  display: flex;
+  align-items: center;
+  transition: all 0.25s var(--jr-ease);
+  min-width: 200px;
+}
+
+.ios-search-capsule[data-expanded="true"],
+.ios-search-capsule:focus-within {
+  flex: 1 1 340px;
+  max-width: 440px;
+}
+
+/* Active Badge Scale-Pop */
+@keyframes jr-badge-pop {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--jr-accent, #e8803f);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: jr-badge-pop 0.24s var(--jr-ease);
+}
+
+/* Capsule Pills Interactive states */
+.ios-pill-btn {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.14s var(--jr-ease), background 0.18s ease, border-color 0.18s ease;
+  user-select: none;
+}
+
+@media (hover: hover) {
+  .ios-pill-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+}
+
+.ios-pill-btn:active {
+  transform: scale(0.97);
+}
+
+.ios-pill-btn:focus-visible {
+  outline: 2px solid var(--jr-accent, #e8803f);
+  outline-offset: 2px;
+}
+
+/* Mobile Horizontally Scrollable Pill Strip */
+@media (max-width: 734px) {
+  .ios-dynamic-island-shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .ios-action-capsules {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .ios-action-capsules::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ios-pill-btn,
+  .jr-seg {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+  }
+}
+
+/* WP3: Perspective Switch Segmented Control */
+.jr-seg {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  min-height: 44px;
+  align-items: center;
+}
+
+.jr-seg::before {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: calc(50% - 3px);
+  border-radius: 999px;
+  background: var(--jr-thumb, #b54610);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform 0.3s var(--jr-ease);
+  pointer-events: none;
+}
+
+.jr-seg[data-value="recruiter"]::before {
+  transform: translateX(100%);
+}
+
+.jr-seg__btn {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--jr-fg-muted, #9c958f);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: color 0.18s ease;
+  min-height: 38px;
+}
+
+.jr-seg__btn:focus-visible {
+  outline: 2px solid var(--jr-accent, #e8803f);
+  outline-offset: 1px;
+}
+
+.jr-seg__btn.is-selected {
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jr-seg::before {
+    transition: none;
+  }
+}
+
+/* WP3 List Crossfade on Perspective Switch */
+.jr-list-crossfade {
+  animation: jr-list-fade-in 0.2s var(--jr-ease);
+}
+
+@keyframes jr-list-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Global Motion Preference */
 @media (prefers-reduced-motion: reduce) {
   *,

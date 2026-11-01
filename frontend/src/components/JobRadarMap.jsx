@@ -29,6 +29,7 @@ import '../radar.css'
 import './jr-tokens.css'
 import { getCompanyLogo } from './useLogo.js'
 import JrSheet from './JrSheet.jsx'
+import JrSegmented from './JrSegmented.jsx'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -141,6 +142,27 @@ export default function JobRadarMap() {
 
   // Enterprise API key
   const [customApiKey, setCustomApiKey] = useState(localStorage.getItem('pp_custom_map_key') || '')
+
+  // WP2: Sentinel for capsule scroll shadow & search expand state
+  const sentinelRef = useRef(null)
+  const searchInputRef = useRef(null)
+  const [isScrolled, setIsScrolled] = useState(false)
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsScrolled(!entry.isIntersecting)
+      },
+      { threshold: [0] }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
 
   const mapContainerRef = useRef(null)
   const mapInstanceRef = useRef(null)
@@ -795,8 +817,11 @@ export default function JobRadarMap() {
   return (
     <main id="main" className="dash-page radar-page jr-root" data-basemap={mapTheme}>
       <div className="w">
-        {/* ── 1. APPLE iOS 27 DYNAMIC ISLAND COMMAND CAPSULE ───────────────── */}
-        <header className="ios-dynamic-island-shell">
+        {/* WP2: 1px Sentinel for scroll shadow detection without scroll listeners */}
+        <div ref={sentinelRef} className="jr-sentinel" aria-hidden="true" />
+
+        {/* ── 1. APPLE iOS 27 DYNAMIC ISLAND COMMAND CAPSULE (WP2) ─────────── */}
+        <header className={`ios-dynamic-island-shell ${isScrolled ? 'is-scrolled' : ''}`}>
           <div className="ios-island-capsule">
             {/* Left: Dynamic Beacon & Branding */}
             <div className="ios-island-brand">
@@ -817,24 +842,44 @@ export default function JobRadarMap() {
               </div>
             </div>
 
-            {/* Center: Fluid Expanding Search Island */}
-            <div className="ios-search-capsule">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            {/* Center: Fluid Expanding Search Island (WP2) */}
+            <div
+              className="ios-search-capsule"
+              data-expanded={isSearchExpanded || Boolean(searchQuery)}
+              aria-expanded={isSearchExpanded || Boolean(searchQuery)}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" />
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
               <input
+                ref={searchInputRef}
                 type="text"
                 value={searchQuery}
+                onFocus={() => setIsSearchExpanded(true)}
+                onBlur={() => {
+                  if (!searchQuery) setIsSearchExpanded(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsSearchExpanded(false)
+                    searchInputRef.current?.blur()
+                  }
+                }}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='Search verified roles, skills (e.g. "React", "Python", "Docker", "Druva")...'
+                aria-label="Search verified roles and skills"
               />
               {searchQuery && (
                 <button
                   type="button"
                   className="ios-search-clear"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('')
+                    setIsSearchExpanded(false)
+                  }}
                   title="Clear search"
+                  aria-label="Clear search"
                 >
                   ✕
                 </button>
@@ -888,23 +933,11 @@ export default function JobRadarMap() {
                 <span className="gps-label">{locating ? 'Triangulating...' : 'My Location'}</span>
               </button>
 
-              {/* Perspective Segmented Switch */}
-              <div className="ios-segmented-control">
-                <button
-                  type="button"
-                  className={`ios-seg-btn ${perspective === 'candidate' ? 'selected' : ''}`}
-                  onClick={() => setPerspective('candidate')}
-                >
-                  👨‍💻 Candidate
-                </button>
-                <button
-                  type="button"
-                  className={`ios-seg-btn ${perspective === 'recruiter' ? 'selected' : ''}`}
-                  onClick={() => setPerspective('recruiter')}
-                >
-                  🏢 Recruiter
-                </button>
-              </div>
+              {/* Perspective Segmented Switch (WP3 Accessible Sliding Thumb) */}
+              <JrSegmented
+                value={perspective}
+                onChange={(newPerspective) => setPerspective(newPerspective)}
+              />
             </div>
           </div>
 
@@ -1015,8 +1048,8 @@ export default function JobRadarMap() {
             )}
           </div>
 
-          {/* RIGHT: JOB OPPORTUNITY CARDS OR RECRUITER TALENT CARDS */}
-          <div className="radar-listings-scroll">
+          {/* RIGHT: JOB OPPORTUNITY CARDS OR RECRUITER TALENT CARDS (WP3 List Crossfade) */}
+          <div key={perspective} className="radar-listings-scroll jr-list-crossfade">
             {/* Header / Expand All Control */}
             <div className="radar-listings-header">
               <span className="listings-count-badge">
