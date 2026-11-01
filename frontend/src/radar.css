@@ -617,3 +617,256 @@
   padding: 28px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
 }
+
+
+/* ==========================================================================
+   PRODUCTION ENHANCEMENTS: THE 5 INDUSTRY RADAR IMPROVEMENTS
+   ========================================================================== */
+
+/* 1. ANIMATED TRANSIT POLYLINE & COMMUTE HUD */
+.transit-route-line {
+  stroke: #e8803f;
+  stroke-width: 4;
+  stroke-dasharray: 8, 8;
+  animation: transitDashAnim 1.6s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(232, 128, 63, 0.9));
+}
+
+@keyframes transitDashAnim {
+  from { stroke-dashoffset: 32; }
+  to { stroke-dashoffset: 0; }
+}
+
+.radar-transit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-family: var(--mono, monospace);
+  margin-top: 4px;
+}
+
+.radar-transit-badge.metro {
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.35);
+  color: #c084fc;
+}
+
+/* 2. CRYPTOGRAPHIC PROOF-GAP RESOLUTION PILL & DRAWER */
+.radar-skill-tag.clickable-gap {
+  cursor: pointer;
+  border-color: rgba(232, 128, 63, 0.5);
+  background: rgba(232, 128, 63, 0.08);
+  color: #e8803f;
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.radar-skill-tag.clickable-gap:hover {
+  background: rgba(232, 128, 63, 0.22);
+  border-color: #e8803f;
+  transform: translateY(-1px);
+  box-shadow: 0 0 8px rgba(232, 128, 63, 0.4);
+}
+
+.radar-gap-hint {
+  font-size: 0.64rem;
+  background: #e8803f;
+  color: #121110;
+  padding: 1px 4px;
+  border-radius: 2px;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.proofgap-drawer-box {
+  background: #181716;
+  border: 1.5px solid #e8803f;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 580px;
+  padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);
+  position: relative;
+}
+
+.proofgap-commit-card {
+  background: #100f0e;
+  border: 1px solid #2d2b29;
+  border-radius: 6px;
+  padding: 14px;
+  margin: 14px 0;
+  font-family: var(--mono, monospace);
+  font-size: 0.78rem;
+}
+
+.proofgap-snippet {
+  background: #090908;
+  border: 1px solid #222;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 8px;
+  color: #a3e635;
+  font-size: 0.74rem;
+  overflow-x: auto;
+  line-height: 1.4;
+}
+
+/* 3. SMB & STARTUP FAST-TRACK BADGES (TRACK 2 ENABLEMENT) */
+.smb-fasttrack-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: linear-gradient(90deg, rgba(234, 88, 12, 0.18), rgba(245, 158, 11, 0.18));
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-family: var(--mono, monospace);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.tier-filter-toggle {
+  display: flex;
+  background: #141312;
+  border: 1px solid var(--line, #2d2b29);
+  border-radius: 6px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.tier-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted, #9c958f);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  font-family: var(--sans, sans-serif);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tier-toggle-btn:hover {
+  color: #fff;
+}
+
+.tier-toggle-btn.active {
+  background: #b54610;
+  color: #fff;
+}
+
+/* 4. SEZ GEOFENCING CORRIDORS SELECTOR */
+.sez-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-top: 6px;
+}
+
+.sez-pill-btn {
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line, #2a2826);
+  color: var(--muted, #9c958f);
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sez-pill-btn:hover {
+  border-color: #e8803f;
+  color: #fff;
+}
+
+.sez-pill-btn.active {
+  background: rgba(232, 128, 63, 0.15);
+  border-color: #e8803f;
+  color: #e8803f;
+  font-weight: 600;
+}
+
+/* 5. RECRUITER TALENT SCOUT VIEW (B2B SaaS MODE) */
+.radar-perspective-toggle {
+  display: flex;
+  background: #121110;
+  border: 1.5px solid #b54610;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.radar-perspective-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted, #9c958f);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.radar-perspective-btn.active {
+  background: #b54610;
+  color: #fff;
+}
+
+.radar-candidate-pin {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 2px solid #38bdf8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.22s ease;
+}
+
+.radar-candidate-pin:hover, .radar-candidate-pin.active-pin {
+  transform: scale(1.3) translateY(-4px);
+  border-color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.9), 0 0 18px rgba(56, 189, 248, 0.95);
+  z-index: 1000;
+}
+
+.radar-candidate-card {
+  background: #181716;
+  border: 1px solid var(--line, #2e2b28);
+  border-radius: 6px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.radar-candidate-card:hover {
+  border-color: #38bdf8;
+  background: #1e1d1b;
+}
+
+.radar-candidate-card.active {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.06);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
+}
