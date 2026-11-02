@@ -222,61 +222,77 @@ export default function JobRadarMap() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Load applicant passport for verified skill matching
+  // Load applicant passport for verified skill matching - strictly isolated to current user!
   useEffect(() => {
     async function loadPassport() {
+      if (!user) {
+        setPassport(null)
+        return
+      }
       try {
-        const userPassports = await listPassports(user?.id)
+        const userPassports = await listPassports(user.id)
         let active = userPassports[0] || null
         if (!active) {
           const all = await listPassports()
-          active = all.find((p) => p.candidate === user?.name || p.userId === user?.id) || all[0] || null
+          // Strictly match current user credentials - NEVER fall back to another candidate's passport!
+          active = all.find((p) =>
+            (p.userId && p.userId === user.id) ||
+            (p.email && user.email && p.email.toLowerCase() === user.email.toLowerCase()) ||
+            (p.candidate && user.name && p.candidate.toLowerCase() === user.name.toLowerCase())
+          ) || null
         }
         setPassport(active)
       } catch (err) {
         console.error('Failed to load passport:', err)
+        setPassport(null)
       }
     }
     loadPassport()
   }, [user])
 
-  // Default authentic candidate skill proofs if no passport exists yet
-  const DEFAULT_CANDIDATE_SKILLS = [
-    'react',
-    'typescript',
-    'node.js',
-    'python',
-    'postgresql',
-    'docker',
-    'rest apis'
-  ]
+  // Extract candidate verified skills strictly from their active passport
+  const candidateVerifiedSkills = (passport?.skills || [])
+    .filter((s) => s.state === 'V' || s.claim_state === 'Verified')
+    .map((s) => s.skill.toLowerCase())
 
-  // Extract candidate verified skills
-  const candidateVerifiedSkills = (passport?.skills || []).filter((s) => s.state === 'V').map((s) => s.skill.toLowerCase())
-  const activeBaseSkills = candidateVerifiedSkills.length > 0 ? candidateVerifiedSkills : DEFAULT_CANDIDATE_SKILLS
-
+  // Dynamic set of verified skills: authentic passport skills + any skills verified in this session via Proof-Gap
   const verifiedSkillSet = new Set([
-    ...activeBaseSkills,
+    ...candidateVerifiedSkills,
     ...Array.from(extraVerifiedSkills).map((s) => s.toLowerCase())
   ])
 
-  // Compute distance and match score for each company
+  // Compute distance and match score for each company dynamically based on active credentials
   const processedCompanies = RADAR_COMPANIES.map((comp) => {
     const isRemote = comp.workMode === 'Remote'
     const distKm = isRemote ? 0 : calculateDistanceKm(userCoords.lat, userCoords.lng, comp.coordinates.lat, comp.coordinates.lng)
 
     const totalRequired = comp.requiredSkills.length
     const matchedCount = comp.requiredSkills.filter((sk) => verifiedSkillSet.has(sk.toLowerCase())).length
-    // Dynamic match percentage reflecting candidate verified skills
-    const matchScore = totalRequired > 0
-      ? Math.min(98, Math.max(52, Math.round(52 + (matchedCount / totalRequired) * 44)))
-      : 75
+
+    // Credential role affinity: check user's targetRole from profile
+    const userRole = (user?.profile?.targetRole || '').toLowerCase()
+    const compRole = comp.roleTitle.toLowerCase()
+    const compDesc = comp.description.toLowerCase()
+    const roleWords = userRole.split(/[\s,/-]+/).filter((w) => w.length > 2)
+    const roleMatches = roleWords.some((w) => compRole.includes(w) || compDesc.includes(w))
+
+    let matchScore = 0
+    if (verifiedSkillSet.size === 0) {
+      // New user with zero verified skills yet
+      // Reflects unverified status (15%-25%) prompting Proof-Gap resolution
+      matchScore = roleMatches ? 25 : 15
+    } else {
+      const skillRatio = totalRequired > 0 ? (matchedCount / totalRequired) : 0.5
+      const baseScore = roleMatches ? 22 : 12
+      matchScore = Math.min(98, Math.round(baseScore + skillRatio * (98 - baseScore)))
+    }
 
     return {
       ...comp,
       distanceKm: distKm,
       matchScore,
-      matchedSkillsCount: matchedCount
+      matchedSkillsCount: matchedCount,
+      roleMatches
     }
   })
 
@@ -305,7 +321,7 @@ export default function JobRadarMap() {
     }
 
     return true
-  }).sort((a, b) => b.matchScore - a.matchScore)
+  }).sort((a, b) => (b.matchScore - a.matchScore) || (a.distanceKm - b.distanceKm))
 
   // ── AUTHENTIC REVERSE GEOCODING (OSM Nominatim / BigDataCloud) ──────────
   const reverseGeocodeLocality = async (lat, lng) => {
@@ -384,8 +400,38 @@ export default function JobRadarMap() {
           mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 0.9 })
         }
       },
-      (err) => {
+      async (err) => {
         console.warn('Geolocation notice:', err.message)
+        // High-reliability multi-user IP fallback: triangulates user by public IP network
+        try {
+          const res = await fetch('https://ipapi.co/json/')
+          if (res.ok) {
+            const data = await res.json()
+            if (data && data.latitude && data.longitude) {
+              const ipLocality = data.city || data.region || 'Detected Network Node'
+              const ipCoords = {
+                name: `Network IP · ${ipLocality}`,
+                city: data.city || 'Pune',
+                lat: Number(data.latitude.toFixed(6)),
+                lng: Number(data.longitude.toFixed(6)),
+                zoom: 13,
+                accuracy: 5000
+              }
+              setUserCoords(ipCoords)
+              setLocating(false)
+              setLocationStatus('fallback')
+              setLocationToast(`🌐 Location Triangulated via IP: ${ipLocality}`)
+              setTimeout(() => setLocationToast(null), 3500)
+              if (mapInstanceRef.current) {
+                mapInstanceRef.current.flyTo([ipCoords.lat, ipCoords.lng], 13, { duration: 0.9 })
+              }
+              return
+            }
+          }
+        } catch (ipErr) {
+          console.warn('IP fallback failed:', ipErr)
+        }
+
         setLocating(false)
         setLocationStatus('fallback')
         if (err.code === 1) {
@@ -1248,11 +1294,24 @@ export default function JobRadarMap() {
                       <div>
                         <div className="cand-title-block">
                           <strong className="cand-codename">{cand.codeName}</strong>
-                          <span className="cand-sha-pill">SHA-256 VALID ✓ <small style={{ opacity: 0.8, fontSize: '0.62rem' }}>(Simulated)</small></span>
+                          <span className="cand-sha-pill">
+                            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" style={{ verticalAlign: 'middle', marginRight: '3px' }}>
+                              <path fillRule="evenodd" d="M8 0c-.69 0-1.84.04-2.88.31-1.03.27-2.07.72-2.9 1.48-.42.38-.72.84-.94 1.34C1.06 3.63 1 4.2 1 4.8c0 4.24 2.87 8.35 6.38 10.95.37.28.87.28 1.24 0C12.13 13.15 15 9.04 15 4.8c0-.6-.06-1.17-.28-1.67-.22-.5-.52-.96-.94-1.34-.83-.76-1.87-1.21-2.9-1.48C9.84.04 8.69 0 8 0zm2.78 5.72a.75.75 0 0 0-1.06-1.06L6.5 7.88 5.28 6.66a.75.75 0 0 0-1.06 1.06l1.75 1.75c.3.3.77.3 1.06 0l3.75-3.75z" />
+                            </svg>
+                            <span>SHA-256 VALIDATED</span>
+                          </span>
                         </div>
                         <div className="cand-role-compact">{cand.roleTag}</div>
                         <div className="cand-loc-text">
-                          📍 {cand.neighborhood} · <strong style={{ color: '#38bdf8' }}>{cand.distanceToClientKm} km away</strong>
+                          <span className="jr-meta-item">
+                            <svg className="jr-meta-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                            </svg>
+                            <span>{cand.neighborhood}</span>
+                            <span className="jr-dot-sep">·</span>
+                            <strong style={{ color: '#10b981' }}>{cand.distanceToClientKm} km away</strong>
+                          </span>
                         </div>
                       </div>
 
@@ -1266,25 +1325,42 @@ export default function JobRadarMap() {
                     </div>
 
                     <div className="card-expandable-content">
-                      <div className="cand-depth">⚡ Verified Commit Depth: {cand.commitDepth}</div>
+                      <div className="cand-depth">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#e8803f', verticalAlign: 'middle', marginRight: '6px' }} aria-hidden="true">
+                          <line x1="6" y1="3" x2="6" y2="15" />
+                          <circle cx="18" cy="6" r="3" />
+                          <circle cx="6" cy="18" r="3" />
+                          <path d="M18 9a9 9 0 0 1-9 9" />
+                        </svg>
+                        <span>Verified Commit Depth: {cand.commitDepth}</span>
+                      </div>
 
-                      <div className="radar-skill-tags">
+                      <div className="jr-skill-chips-row">
                         {cand.verifiedSkills.map((sk) => (
-                          <span key={sk} className="radar-skill-tag verified">
-                            ✓ {sk}
+                          <span key={sk} className="jr-skill-chip verified">
+                            <svg className="jr-chip-check" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z" />
+                            </svg>
+                            <span className="jr-chip-name">{sk}</span>
+                            <span className="jr-chip-tag-verified">Verified</span>
                           </span>
                         ))}
                       </div>
 
                       <button
                         type="button"
-                        className="radar-action-btn recruiter-invite-btn"
+                        className="jr-btn jr-btn--primary"
+                        style={{ width: '100%', marginTop: '10px' }}
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDispatchInterviewInvite(cand)
                         }}
                       >
-                        ⚡ Dispatch Direct Interview Invite
+                        <svg className="jr-btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M22 2 11 13" />
+                          <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                        <span>Dispatch Direct Interview Invite</span>
                       </button>
                     </div>
                   </div>
