@@ -10,6 +10,8 @@ import { useAuth } from '../auth/AuthContext.jsx'
 import { getLatestRoleKey, listRoadmaps, updateRoadmapStep } from '../api/roadmaps.js'
 import Seg from './Seg.jsx'
 import { L } from '../data.js'
+import { getStandardRoadmap } from '../data/standardRoadmaps.js'
+import { generateSkillMilestones } from '../api/gemini.js'
 
 export default function Learnings() {
   const { user } = useAuth()
@@ -19,6 +21,8 @@ export default function Learnings() {
   const [statusFilter, setStatusFilter] = useState('all') // 'all' | 'active' | 'completed'
   const [pastedLinks, setPastedLinks] = useState({})
   const [saveStatus, setSaveStatus] = useState(null)
+  const [expandedStandard, setExpandedStandard] = useState({}) // keyed by skillId; default collapsed
+  const [aiMilestones, setAiMilestones] = useState({}) // keyed by skillId: { status, items, source }; local only
 
   // Load current target role and its roadmaps
   useEffect(() => {
@@ -112,6 +116,21 @@ export default function Learnings() {
       setTimeout(() => setSaveStatus(null), 2500)
     } catch (err) {
       console.error('Failed to save assessment link:', err)
+    }
+  }
+
+  // Generate read-only AI milestones for one card, on click only
+  const handleGenerateMilestones = async (roadmap) => {
+    const setResult = (result) =>
+      setAiMilestones((prev) => ({ ...prev, [roadmap.skillId]: result }))
+
+    setResult({ status: 'loading' })
+    try {
+      const { items, source } = await generateSkillMilestones(roadmap.skillName, roadmap.state)
+      setResult({ status: 'done', items, source })
+    } catch (err) {
+      console.error('Failed to generate milestones:', err)
+      setResult({ status: 'error' })
     }
   }
 
@@ -362,6 +381,65 @@ export default function Learnings() {
                           )}
                         </div>
                       ))}
+                    </div>
+
+                    {/* Standard Roadmap (read-only reference) */}
+                    <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed var(--line)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="b g sm"
+                          aria-expanded={Boolean(expandedStandard[roadmap.skillId])}
+                          onClick={() =>
+                            setExpandedStandard((prev) => ({
+                              ...prev,
+                              [roadmap.skillId]: !prev[roadmap.skillId],
+                            }))
+                          }
+                        >
+                          Standard Roadmap for {roadmap.skillName}{' '}
+                          <span aria-hidden="true">{expandedStandard[roadmap.skillId] ? '▴' : '▾'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="b g sm"
+                          disabled={aiMilestones[roadmap.skillId]?.status === 'loading'}
+                          onClick={() => handleGenerateMilestones(roadmap)}
+                        >
+                          Generate AI milestones
+                        </button>
+                        {aiMilestones[roadmap.skillId]?.status === 'loading' && (
+                          <span className="m" role="status" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                            Generating...
+                          </span>
+                        )}
+                        {aiMilestones[roadmap.skillId]?.status === 'error' && (
+                          <span className="m" role="alert" style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                            Couldn't generate milestones right now
+                          </span>
+                        )}
+                      </div>
+                      {expandedStandard[roadmap.skillId] && (
+                        <ol style={{ margin: '12px 0 0', paddingLeft: 22, listStyle: 'decimal', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.88rem', color: 'var(--muted)' }}>
+                          {getStandardRoadmap(roadmap.skillName).map((milestone) => (
+                            <li key={milestone.id}>{milestone.label}</li>
+                          ))}
+                        </ol>
+                      )}
+
+                      {/* AI-suggested milestones (read-only, not persisted) */}
+                      {aiMilestones[roadmap.skillId]?.status === 'done' && (
+                        <div style={{ marginTop: 14, padding: '16px', borderRadius: '10px', background: 'var(--surface)', border: '1px solid var(--line)', borderLeft: '3px solid var(--accent)' }}>
+                          <span className="chip sm" style={{ fontSize: '0.72rem' }}>
+                            {aiMilestones[roadmap.skillId].source === 'ai' ? 'AI-suggested milestones' : 'Suggested milestones'}
+                          </span>
+                          <ol style={{ margin: '12px 0 0', padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.88rem', color: 'var(--ink)' }}>
+                            {aiMilestones[roadmap.skillId].items.map((item, idx) => (
+                              <li key={idx}>{item.step}. {item.title}</li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
