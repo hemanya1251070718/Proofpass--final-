@@ -96,10 +96,39 @@ function getTileConfig(theme, customKey) {
 
 export default function JobRadarMap() {
   const { user } = useAuth()
+  const isRecruiter = user?.role === 'recruiter'
+  const isApplicant = user?.role === 'applicant'
+  const isAdmin = user?.role === 'admin'
+
   const [passport, setPassport] = useState(null)
 
   // Perspective: 'candidate' vs 'recruiter'
-  const [perspective, setPerspective] = useState('candidate')
+  // Strictly enforce role-based authorization:
+  // - Candidates/applicants can ONLY access 'candidate' perspective
+  // - Recruiters can ONLY access 'recruiter' perspective
+  // - Admins can test/audit both perspectives
+  const [perspective, setPerspective] = useState(() => {
+    if (user?.role === 'recruiter') return 'recruiter'
+    return 'candidate'
+  })
+
+  // Enforce strict perspective lock based on authenticated role
+  useEffect(() => {
+    if (isRecruiter && perspective !== 'recruiter') {
+      setPerspective('recruiter')
+    } else if (isApplicant && perspective !== 'candidate') {
+      setPerspective('candidate')
+    }
+  }, [isRecruiter, isApplicant, perspective])
+
+  // Safe handler for perspective changes (Admin only)
+  const handlePerspectiveChange = (newPerspective) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized perspective switch attempt blocked by role guard')
+      return
+    }
+    setPerspective(newPerspective)
+  }
 
   // Search & Navigation
   const [searchQuery, setSearchQuery] = useState('')
@@ -829,6 +858,10 @@ export default function JobRadarMap() {
 
   // Dispatch application modal
   const handleApply = (comp) => {
+    if (isRecruiter) {
+      console.warn('Unauthorized: Recruiters cannot submit candidate job applications')
+      return
+    }
     setApplyModalCompany(comp)
     setAppliedSuccess(false)
   }
@@ -843,6 +876,10 @@ export default function JobRadarMap() {
 
   // Recruiter: Dispatch interview invitation
   const handleDispatchInterviewInvite = (cand) => {
+    if (!isRecruiter && !isAdmin) {
+      console.warn('Unauthorized: Candidates cannot dispatch interview invitations')
+      return
+    }
     setInterviewInviteCandidate(cand)
     setInterviewInviteSuccess(false)
   }
@@ -878,7 +915,7 @@ export default function JobRadarMap() {
               </div>
               <div className="ios-brand-text">
                 <div className="ios-app-title">
-                  <span>JOB RADAR</span>
+                  <span>{perspective === 'candidate' ? 'JOB RADAR' : 'TALENT RADAR'}</span>
                   <span className="ios-live-indicator">
                     <span className="live-dot" /> LIVE
                   </span>
@@ -980,11 +1017,27 @@ export default function JobRadarMap() {
                 <span className="gps-label">{locating ? 'Triangulating...' : 'My Location'}</span>
               </button>
 
-              {/* Perspective Segmented Switch (WP3 Accessible Sliding Thumb) */}
-              <JrSegmented
-                value={perspective}
-                onChange={(newPerspective) => setPerspective(newPerspective)}
-              />
+              {/* Perspective Control: Segmented switch for Admins, locked role indicator for Candidates and Recruiters */}
+              {isAdmin ? (
+                <JrSegmented
+                  value={perspective}
+                  onChange={handlePerspectiveChange}
+                />
+              ) : (
+                <div
+                  className={`jr-role-pill ${perspective === 'candidate' ? 'candidate' : 'recruiter'}`}
+                  title={
+                    perspective === 'candidate'
+                      ? 'Candidate Job Radar (Locked to Candidate Mode)'
+                      : 'Recruiter Talent Scout (Locked to Recruiter Mode)'
+                  }
+                  role="status"
+                  aria-label={`Active Role Perspective: ${perspective === 'candidate' ? 'Candidate' : 'Recruiter'}`}
+                >
+                  <span className="role-indicator-dot" aria-hidden="true" />
+                  <span>{perspective === 'candidate' ? 'Candidate Radar' : 'Recruiter Scout'}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1565,7 +1618,7 @@ export default function JobRadarMap() {
 
       {/* ── 5. PASSPORT APPLICATION MODAL ─────────────────────────────────── */}
       <JrSheet
-        open={Boolean(applyModalCompany)}
+        open={Boolean(applyModalCompany) && !isRecruiter}
         onClose={() => setApplyModalCompany(null)}
         badge="CRYPTOGRAPHIC PASSPORT · DEMO"
         title={`Apply to ${applyModalCompany?.name || ''}`}
@@ -1626,7 +1679,7 @@ export default function JobRadarMap() {
 
       {/* ── 6. RECRUITER INTERVIEW DISPATCH MODAL ─────────────────────────── */}
       <JrSheet
-        open={Boolean(interviewInviteCandidate)}
+        open={Boolean(interviewInviteCandidate) && (isRecruiter || isAdmin)}
         onClose={() => setInterviewInviteCandidate(null)}
         badge="B2B FAST-TRACK RECRUITER"
         title={`Invite ${interviewInviteCandidate?.codeName || ''}`}

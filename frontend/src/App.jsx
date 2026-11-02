@@ -395,13 +395,22 @@ function AppShell() {
                 </Link>
               </>
             ) : (
-              <Link
-                to="/recruiter"
-                aria-current={pathname.startsWith('/recruiter') ? 'page' : undefined}
-                onClick={handleMobileNavClick}
-              >
-                Dashboard
-              </Link>
+              <>
+                <Link
+                  to="/recruiter"
+                  aria-current={pathname.startsWith('/recruiter') ? 'page' : undefined}
+                  onClick={handleMobileNavClick}
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  to="/radar"
+                  aria-current={pathname === '/radar' ? 'page' : undefined}
+                  onClick={handleMobileNavClick}
+                >
+                  Talent Radar
+                </Link>
+              </>
             )}
 
             {!user ? (
@@ -568,7 +577,7 @@ function AppShell() {
             <Route
               path="/radar"
               element={
-                <RequireRole roles="applicant">
+                <RequireRole roles={['applicant', 'recruiter', 'admin']}>
                   <ErrorBoundary>
                     <JobRadarMap />
                   </ErrorBoundary>
