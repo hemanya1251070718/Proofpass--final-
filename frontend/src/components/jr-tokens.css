@@ -1413,3 +1413,249 @@
   width: 12px;
   height: 12px;
 }
+
+/* ==========================================================================
+   Mercedes-Benz MBUX & Audi Virtual Cockpit - Transit Telemetry HUD
+   ========================================================================== */
+.radar-floating-transit-hud,
+.jr-cockpit-hud {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 500;
+  background: rgba(14, 15, 20, 0.92);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+  animation: slideUpSpring 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes slideUpSpring {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 1. Destination & Waypoint Identity */
+.jr-cockpit-dest {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.jr-cockpit-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jr-cockpit-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.09);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.jr-cockpit-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: cockpitPulse 2s infinite ease-in-out;
+}
+
+@keyframes cockpitPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.jr-cockpit-corridor-tag {
+  font-size: 0.68rem;
+  color: #8e95a5;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jr-cockpit-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #f8fafc;
+  letter-spacing: -0.01em;
+  margin: 1px 0;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jr-cockpit-subline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.73rem;
+  color: #8e95a5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jr-cockpit-svg {
+  width: 13px;
+  height: 13px;
+  color: #8e95a5;
+  flex-shrink: 0;
+}
+
+.jr-cockpit-svg.sm {
+  width: 11px;
+  height: 11px;
+}
+
+.jr-cockpit-origin-text {
+  color: #94a3b8;
+}
+
+/* 2. Digital Instrument Cluster Telemetry Metrics */
+.jr-cockpit-metrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.jr-cockpit-metric-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.jr-cockpit-val-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.jr-cockpit-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f8fafc;
+  line-height: 1;
+}
+
+.jr-cockpit-unit {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #e8803f;
+  letter-spacing: 0.06em;
+}
+
+.jr-cockpit-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8e95a5;
+  white-space: nowrap;
+}
+
+.jr-cockpit-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* 3. Multi-Modal Metro Connection & Action */
+.jr-cockpit-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.jr-cockpit-metro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  max-width: 260px;
+}
+
+.jr-cockpit-metro-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jr-cockpit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: linear-gradient(135deg, rgba(232, 128, 63, 0.92) 0%, rgba(207, 99, 34, 0.92) 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 14px rgba(232, 128, 63, 0.25);
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.jr-cockpit-btn:hover {
+  background: linear-gradient(135deg, #f97316 0%, #e8803f 100%);
+  box-shadow: 0 6px 20px rgba(232, 128, 63, 0.4);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .jr-cockpit-hud {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .jr-cockpit-metrics {
+    justify-content: space-around;
+  }
+  .jr-cockpit-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
