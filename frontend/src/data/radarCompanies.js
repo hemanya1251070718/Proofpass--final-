@@ -49,6 +49,15 @@ export const SAMPLE_TECH_HUBS = {
 // ── POPULAR PUNE COMMUTE ORIGINS & STUDENT CAMPUSES ──────────────────────────
 export const PUNE_NEIGHBORHOOD_ORIGINS = [
   {
+    id: 'katraj-kondhwa',
+    name: 'Katraj / Kondhwa Budruk (My Location)',
+    city: 'Pune',
+    lat: 18.45015,
+    lng: 73.86987,
+    neighborhood: 'Katraj / Kondhwa Budruk',
+    description: 'Exact live GPS coordinates (Katraj, Kondhwa Budruk, 411406)'
+  },
+  {
     id: 'vit-pune',
     name: 'VIT Pune Campus (Bibwewadi)',
     city: 'Pune',
