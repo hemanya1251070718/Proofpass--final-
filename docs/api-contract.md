@@ -183,3 +183,21 @@ ProofPass provides an evidence-first technical credibility passport. The backend
   "message": "Candidate passport and verification data permanently deleted."
 }
 ```
+
+---
+
+## Recommendations & Role Matching (Parts 1 and 3)
+
+Base: `/api/v1/recommendations`. Skills are posted by the client (`[{skill, state}]`, state = `V|S|C|X` or full name); the backend is stateless about passports. Part 3 evidence weights are **Verified 1.00 / Supported 0.70 / Claimed 0.35 / Contradicted 0.00** (the verification engine keeps 1.0/0.6/0.2/0.0).
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/status` | catalogue size, role count, GitHub auth/rate snapshot |
+| GET | `/roles/catalogue` | the 20 technical roles with tiered skills |
+| POST | `/roles/match` | `{skills, limit?, family?}` -> ranked roles with score, matched / weak / missing skills, improvement priorities, explanation |
+| POST | `/roles/{role_id}/match` | same for one role (404 if unknown) |
+| GET | `/courses?skill=&state=&limit=` | ranked courses from the imported SQLite Coursera catalogue |
+| GET | `/practice?skill=&limit=` | GitHub issues; `source` = `live` / `cache` / `stale_cache` / `fallback` / `unmapped` |
+| POST | `/plan` | `{skills, target_role_id?}` -> prioritised skills (passport gaps + role gaps) each with courses and practice |
+
+Setup: `python -m backend.recommendations.course_import` (idempotent; CSV at `backend/data/CourseraDataset-Clean.csv`, not committed). Optional env: `GITHUB_TOKEN` (backend only), `GITHUB_CACHE_TTL_SECONDS`, `SEMANTIC_SKILL_MATCHING` (off by default; semantically-resolved skills are capped at Claimed).

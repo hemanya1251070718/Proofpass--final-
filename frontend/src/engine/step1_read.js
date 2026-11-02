@@ -180,18 +180,12 @@ export async function executeStep1Read(intakeData, onLog = () => {}) {
     const username = url.replace(/https?:\/\/(www\.)?github\.com\//i, '').replace(/\/.*$/, '').trim()
     onLog(`Connecting to GitHub REST API for profile: @${username}...`)
 
-    const token = (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GITHUB_TOKEN : '') || (typeof process !== 'undefined' && process.env ? process.env.VITE_GITHUB_TOKEN : '')
-    const cleanToken = token ? token.trim().replace(/^['"]|['"]$/g, '') : null
-
-    if (cleanToken) {
-      onLog('Authenticated via GitHub Personal Access Token (5,000 req/hr quota active).')
-    } else {
-      onLog('Warning: No GitHub token detected; requests will be capped at the 60 req/hr unauthenticated limit.')
-    }
+    // Never send a GitHub token from the browser (anything in a client bundle is public).
+    // Unauthenticated requests are limited to 60/hour; authenticated work happens on the backend.
+    onLog('Using unauthenticated GitHub API requests from the browser (60 req/hr limit).')
 
     const headers = {
       Accept: 'application/vnd.github.v3+json',
-      ...(cleanToken ? { Authorization: `Bearer ${cleanToken.replace(/^Bearer /i, '').replace(/^token /i, '')}` } : {})
     }
 
     try {

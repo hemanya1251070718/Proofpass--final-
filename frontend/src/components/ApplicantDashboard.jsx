@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { listPassports, setPassportRevoked, savePassport } from '../api/passports.js'
-import { getRecommendedRoles } from '../api/recommendations.js'
+import { fetchRoleMatches, getRecommendedRoles } from '../api/recommendations.js'
 import { getLatestRoleKey, listRoadmaps } from '../api/roadmaps.js'
 import { imochaLink } from '../data/resources.js'
 import { L, WEIGHTS } from '../data.js'
@@ -25,11 +25,29 @@ export default function ApplicantDashboard() {
   const [stateFilter, setStateFilter] = useState('ALL')
   const [expandedEvidence, setExpandedEvidence] = useState({})
   const [recommendedRoles, setRecommendedRoles] = useState([])
+  const [careerRoles, setCareerRoles] = useState([])
   const [roleRoadmaps, setRoleRoadmaps] = useState([])
   const [latestRole, setLatestRole] = useState(null)
   const [selfSubmittedLinks, setSelfSubmittedLinks] = useState({})
   const [copiedLink, setCopiedLink] = useState(false)
   const [notice, setNotice] = useState(null)
+
+  // Catalogue-based career role matches (Part 3, backend). Failure just hides the section.
+  const passportSkillsKey = JSON.stringify((passport?.skills || []).map((s) => [s.skill, s.state]))
+  useEffect(() => {
+    if (!passport?.skills?.length) {
+      setCareerRoles([])
+      return undefined
+    }
+    let live = true
+    fetchRoleMatches(passport.skills)
+      .then((rs) => live && setCareerRoles(rs.slice(0, 3)))
+      .catch(() => live && setCareerRoles([]))
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passportSkillsKey])
 
   // Fetch candidate passport and best-matching roles
   useEffect(() => {
@@ -648,6 +666,38 @@ export default function ApplicantDashboard() {
             ))}
           </div>
         </section>
+
+        {careerRoles.length > 0 && (
+          <section style={{ marginBottom: '36px' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <span className="k m">CAREER FIT</span>
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--ink)', margin: '4px 0 0' }}>
+                Best-Matching Career Roles
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0' }}>
+                Deterministic match against a technical role catalogue (Verified 1.00 · Supported 0.70 · Claimed 0.35).{' '}
+                <Link to="/recommendations">See full breakdown and learning plan →</Link>
+              </p>
+            </div>
+            <div className="cards-grid">
+              {careerRoles.map((r) => (
+                <div key={r.role_id} className="role-match-card">
+                  <div className="role-card-head">
+                    <div>
+                      <h3 className="role-card-title">{r.title}</h3>
+                      <p className="role-card-company">{r.family} · core {r.core_coverage}</p>
+                    </div>
+                    <div className="match-gauge">
+                      <div className="match-pct">{Math.round(r.score)}%</div>
+                      <div className="match-label">Match</div>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--muted)', lineHeight: 1.45, margin: '8px 0' }}>{r.explanation}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Verify the Rest (Close Gaps with iMocha) */}
         {skillsToVerifyRest.length > 0 && (
