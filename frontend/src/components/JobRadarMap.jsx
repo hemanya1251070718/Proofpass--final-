@@ -35,6 +35,7 @@ import MatchRing from './MatchRing.jsx'
 import gsap from 'gsap'
 import JrLottie, { LOTTIE_RADAR_SONAR, LOTTIE_SUCCESS_CHECK } from './JrLottie.jsx'
 import JrThreeHologram from './JrThreeHologram.jsx'
+import RadarBackground from './RadarBackground.jsx'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -900,6 +901,9 @@ export default function JobRadarMap() {
 
   return (
     <main id="main" className="dash-page radar-page jr-root" data-basemap={mapTheme}>
+      {/* Ambient Live Glow & Particle Constellation Background (shared with Verify aesthetic) */}
+      <RadarBackground />
+
       <div className="w">
         {/* WP2: 1px Sentinel for scroll shadow detection without scroll listeners */}
         <div ref={sentinelRef} className="jr-sentinel" aria-hidden="true" />
