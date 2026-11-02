@@ -118,3 +118,4 @@ export default function JrThreeHologram({ size = 36, color = 0xe8803f }) {
     />
   )
 }
+
