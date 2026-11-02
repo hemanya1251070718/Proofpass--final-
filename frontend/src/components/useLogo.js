@@ -28,3 +28,4 @@ export function getCompanyLogo(domain) {
   // High-res Google Favicon CDN fallback (128px)
   return `https://www.google.com/s2/favicons?domain=${cleanDomain}&sz=128`
 }
+

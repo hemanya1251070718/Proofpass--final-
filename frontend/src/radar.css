@@ -1,1654 +1,1655 @@
-/* ==========================================================================
-   ProofPass - Job Radar & Commute Engine (Apple iOS 27 Design System)
-   Inspired by Apple Maps, Dynamic Island, and Liquid Glassmorphism
-   Zero-Overlap Guaranteed via Isolated Fixed Modal Sheets & Strict Flex Bounds
-   ========================================================================== */
-
-/* Root Page Container */
-.radar-page {
-  padding-bottom: 60px;
-  color: #f5f3ef;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ── 1. APPLE iOS 27 DYNAMIC ISLAND COMMAND CAPSULE ───────────────────────── */
-.ios-dynamic-island-shell {
-  position: relative;
-  z-index: 60;
-  margin-bottom: 16px;
-}
-
-.ios-island-capsule {
-  background: rgba(18, 17, 16, 0.76);
-  backdrop-filter: blur(32px) saturate(190%);
-  -webkit-backdrop-filter: blur(32px) saturate(190%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 18px;
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-/* Left: Dynamic Beacon & Branding */
-.ios-island-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-.ios-radar-beacon {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(232, 128, 63, 0.15);
-  border: 1.5px solid rgba(232, 128, 63, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.beacon-core {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #e8803f;
-  box-shadow: 0 0 10px #e8803f;
-}
-
-.beacon-sonar {
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(232, 128, 63, 0.45);
-  animation: radarSonarPulse 2.4s infinite ease-out;
-  pointer-events: none;
-}
-
-@keyframes radarSonarPulse {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(1.6); opacity: 0; }
-}
-
-.ios-brand-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.ios-app-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.95rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #fff;
-}
-
-.ios-live-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.62rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 12px;
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  letter-spacing: 0.05em;
-}
-
-.live-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
-  animation: pulseDot 1.6s infinite ease-in-out;
-}
-
-@keyframes pulseDot {
-  0%, 100% { transform: scale(0.85); opacity: 0.8; }
-  50% { transform: scale(1.25); opacity: 1; }
-}
-
-.ios-app-subtitle {
-  font-size: 0.72rem;
-  color: #9c958f;
-  letter-spacing: -0.01em;
-}
-
-/* Center: Expanding Search Island */
-.ios-search-capsule {
-  flex: 1;
-  max-width: 440px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 12px;
-  padding: 7px 12px;
-  transition: all 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.ios-search-capsule:focus-within {
-  background: rgba(0, 0, 0, 0.45);
-  border-color: #e8803f;
-  box-shadow: 0 0 0 3px rgba(232, 128, 63, 0.2);
-  max-width: 500px;
-}
-
-.ios-search-capsule svg {
-  color: #9c958f;
-  flex-shrink: 0;
-}
-
-.ios-search-capsule input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #fff;
-  font-size: 0.82rem;
-  width: 100%;
-}
-
-.ios-search-capsule input::placeholder {
-  color: #78716c;
-  font-size: 0.8rem;
-}
-
-.ios-search-clear {
-  background: transparent;
-  border: none;
-  color: #9c958f;
-  cursor: pointer;
-  padding: 2px 4px;
-  font-size: 0.72rem;
-  border-radius: 4px;
-  transition: color 0.15s ease;
-}
-
-.ios-search-clear:hover {
-  color: #fff;
-}
-
-/* Right: Action Pills */
-.ios-action-capsules {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.ios-pill-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d6d3cd;
-  padding: 7px 12px;
-  border-radius: 10px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
-  white-space: nowrap;
-}
-
-.ios-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  transform: translateY(-1px);
-}
-
-.ios-pill-btn.active-green {
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #4ade80;
-}
-
-.ios-pill-btn.active-orange {
-  background: rgba(232, 128, 63, 0.14);
-  border-color: rgba(232, 128, 63, 0.45);
-  color: #e8803f;
-}
-
-.ios-pill-btn.active-amber {
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.45);
-  color: #fbbf24;
-}
-
-.pill-text-truncate {
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pill-badge {
-  background: #b54610;
-  color: #fff;
-  font-size: 0.65rem;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 10px;
-}
-
-.gps-action-btn {
-  background: rgba(56, 189, 248, 0.12);
-  border-color: rgba(56, 189, 248, 0.35);
-  color: #38bdf8;
-}
-
-.gps-action-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
-  color: #fff;
-}
-
-.gps-action-btn.spinning span:first-child {
-  display: inline-block;
-  animation: spinIcon 1.2s infinite linear;
-}
-
-@keyframes spinIcon {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-/* Apple Segmented Switch */
-.ios-segmented-control {
-  display: inline-flex;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
-}
-
-.ios-seg-btn {
-  background: transparent;
-  border: none;
-  color: #9c958f;
-  padding: 5px 10px;
-  border-radius: 7px;
-  font-size: 0.76rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
-  white-space: nowrap;
-}
-
-.ios-seg-btn:hover {
-  color: #fff;
-}
-
-.ios-seg-btn.selected {
-  background: #b54610;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(181, 70, 16, 0.45);
-}
-
-/* Toast Pill */
-.ios-island-toast-pill {
-  margin-top: 8px;
-  background: rgba(18, 17, 16, 0.92);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  border-radius: 12px;
-  padding: 6px 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: #4ade80;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-  animation: slideDownFade 0.22s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.toast-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  box-shadow: 0 0 6px #22c55e;
-}
-
-@keyframes slideDownFade {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ── 2. MAIN SPLIT GRID (MAP VIEWPORT + LISTINGS) ─────────────────────────── */
-.radar-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(380px, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-@media (max-width: 1080px) {
-  .radar-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Map Viewport Container */
-.radar-viewport-container {
-  background: #0f0e0d;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  height: 680px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-}
-
-/* Floating HUD Controls on Map */
-.radar-floating-hud-top {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  right: 14px;
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  pointer-events: none;
-  gap: 10px;
-}
-
-.hud-capsule {
-  pointer-events: auto;
-  background: rgba(18, 17, 16, 0.88);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  padding: 6px 14px;
-  font-size: 0.74rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #e8803f;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hud-pulse-ring {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #e8803f;
-  box-shadow: 0 0 8px #e8803f;
-}
-
-.hud-theme-picker {
-  pointer-events: auto;
-  background: rgba(18, 17, 16, 0.9);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  padding: 3px;
-  display: flex;
-  gap: 3px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-}
-
-.hud-theme-btn {
-  background: transparent;
-  border: none;
-  color: #9c958f;
-  padding: 5px 10px;
-  border-radius: 7px;
-  font-size: 0.72rem;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  white-space: nowrap;
-}
-
-.hud-theme-btn:hover {
-  color: #fff;
-}
-
-.hud-theme-btn.active {
-  background: #b54610;
-  color: #fff;
-  font-weight: 600;
-}
-
-.hud-theme-btn.license-btn {
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
-  color: #38bdf8;
-}
-
-/* Floating Transit Bottom HUD (OSRM Real Road Powered) */
-.radar-floating-transit-hud {
-  position: absolute;
-  bottom: 14px;
-  left: 14px;
-  right: 14px;
-  z-index: 500;
-  background: rgba(18, 17, 16, 0.92);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(232, 128, 63, 0.45);
-  border-radius: 14px;
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
-  animation: slideUpSpring 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-@keyframes slideUpSpring {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.transit-left {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.transit-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
-  color: #fff;
-}
-
-.transit-badge-road {
-  font-size: 0.65rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  background: rgba(232, 128, 63, 0.16);
-  border: 1px solid rgba(232, 128, 63, 0.4);
-  color: #e8803f;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.transit-metrics {
-  font-size: 0.76rem;
-  color: #d6d3cd;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.transit-time-highlight {
-  color: #38bdf8;
-  font-weight: 600;
-}
-
-.transit-sep {
-  color: #78716c;
-}
-
-.transit-corridor {
-  color: #9c958f;
-}
-
-.transit-right {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.transit-metro {
-  font-size: 0.74rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #4ade80;
-}
-
-.transit-gmaps-link {
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #e8803f;
-  text-decoration: none;
-  background: rgba(232, 128, 63, 0.12);
-  border: 1px solid rgba(232, 128, 63, 0.35);
-  padding: 4px 10px;
-  border-radius: 6px;
-  transition: all 0.15s ease;
-}
-
-.transit-gmaps-link:hover {
-  background: rgba(232, 128, 63, 0.22);
-  color: #fff;
-}
-
-/* Leaflet Canvas Element */
-.leaflet-map-element {
-  width: 100%;
-  height: 100%;
-  background: #0d0c0b;
-  z-index: 1;
-}
-
-/* Tile Filters for Clean Contrast */
-.leaflet-dark-tiles img {
-  filter: brightness(0.68) invert(1) contrast(2.6) hue-rotate(200deg) saturate(0.28) !important;
-}
-
-.leaflet-clean-streets img {
-  filter: contrast(1.05) saturate(1.1) !important;
-}
-
-.leaflet-satellite-tiles img {
-  filter: contrast(1.1) brightness(0.95) !important;
-}
-
-/* ── 3. MAP PINS & COMMUTE BEACONS ────────────────────────────────────────── */
-.clean-marker-container {
-  background: transparent;
-  border: none;
-}
-
-.radar-clean-pin {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #181615;
-  border: 2px solid #b54610;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8), 0 0 12px rgba(181, 70, 16, 0.5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.24s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.radar-clean-pin:hover, .radar-clean-pin.active-pin {
-  transform: scale(1.3) translateY(-4px);
-  border-color: #fff;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.95), 0 0 20px rgba(232, 128, 63, 0.95);
-  z-index: 1000;
-}
-
-.radar-clean-pin .pin-score {
-  font-size: 0.62rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  color: #e8803f;
-  line-height: 1;
-}
-
-.radar-clean-pin .pin-initials {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.1;
-}
-
-.radar-clean-pin .pin-expanded-label {
-  position: absolute;
-  bottom: 46px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(18, 17, 16, 0.94);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: #fff;
-  padding: 3px 10px;
-  border-radius: 6px;
-  font-size: 0.74rem;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-}
-
-.radar-clean-pin:hover .pin-expanded-label,
-.radar-clean-pin.active-pin .pin-expanded-label {
-  opacity: 1;
-}
-
-/* Draggable Origin Marker */
-.user-marker-container {
-  background: transparent;
-  border: none;
-}
-
-.radar-user-map-pin {
-  position: relative;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-}
-
-.radar-user-map-pin:active {
-  cursor: grabbing;
-}
-
-.user-pin-core {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #38bdf8;
-  border: 2px solid #fff;
-  box-shadow: 0 0 12px #38bdf8;
-  z-index: 2;
-}
-
-.user-pin-ring {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(56, 189, 248, 0.25);
-  border: 1.5px solid rgba(56, 189, 248, 0.6);
-  animation: pulseOriginRing 2s infinite ease-out;
-  z-index: 1;
-}
-
-@keyframes pulseOriginRing {
-  0% { transform: scale(0.6); opacity: 0.95; }
-  100% { transform: scale(1.8); opacity: 0; }
-}
-
-/* Animated Transit Road Line */
-.transit-route-line {
-  stroke: #e8803f;
-  stroke-width: 5;
-  stroke-dasharray: 8, 8;
-  animation: transitDash 1.5s linear infinite;
-  filter: drop-shadow(0 0 8px rgba(232, 128, 63, 0.8));
-}
-
-@keyframes transitDash {
-  from { stroke-dashoffset: 32; }
-  to { stroke-dashoffset: 0; }
-}
-
-/* ── 4. APPLE LIQUID GLASS JOB CARDS (INTERACTIVE EXPANDABLE) ────────────── */
-.radar-listings-scroll {
-  max-height: 680px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding-right: 6px;
-  -webkit-overflow-scrolling: touch;
-}
-
-.radar-listings-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.radar-listings-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.radar-listings-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-}
-
-.radar-listings-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(232, 128, 63, 0.45);
-}
-
-/* Listings Header & Quick Expand Pill */
-.radar-listings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 2px 4px 6px;
-  flex-shrink: 0;
-}
-
-.listings-count-badge {
-  font-size: 0.74rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #9c958f;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-}
-
-.expand-all-pill-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d6d3cd;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.expand-all-pill-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(232, 128, 63, 0.4);
-  color: #fff;
-}
-
-/* The Card Container: Compact in Default State, Springs Open on Click */
-.radar-company-card {
-  flex-shrink: 0;
-  min-height: auto;
-  background: rgba(22, 20, 18, 0.76);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-  padding: 16px 18px;
-  cursor: pointer;
-  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
-}
-
-.radar-company-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(232, 128, 63, 0.05), transparent 60%);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
-}
-
-.radar-company-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(232, 128, 63, 0.45);
-  background: rgba(28, 25, 23, 0.88);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(232, 128, 63, 0.14);
-}
-
-.radar-company-card:hover::before {
-  opacity: 1;
-}
-
-.radar-company-card.active {
-  border-color: #e8803f;
-  background: rgba(30, 26, 24, 0.95);
-  box-shadow: 0 0 0 1px #e8803f, 0 14px 36px rgba(0, 0, 0, 0.6);
-}
-
-.radar-company-card.is-expanded {
-  background: rgba(26, 23, 21, 0.96);
-  border-color: rgba(232, 128, 63, 0.65);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.65), 0 0 20px rgba(232, 128, 63, 0.16);
-  padding: 18px 20px;
-}
-
-.radar-company-card.smb-card {
-  border-left: 3.5px solid #fbbf24;
-}
-
-/* Card Header Row */
-.radar-comp-top-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 0;
-}
-
-.radar-company-card.is-expanded .radar-comp-top-row {
-  margin-bottom: 4px;
-}
-
-.radar-comp-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-
-.radar-entity-frame {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #1a1817;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.radar-entity-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #fff;
-  padding: 4px;
-}
-
-.radar-avatar-badge {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.9rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.radar-name-block {
-  display: flex;
-  flex-direction: column;
-}
-
-.radar-comp-name {
-  font-size: 1.02rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: -0.01em;
-}
-
-.corporate-verified-check {
-  color: #4ade80;
-  font-size: 0.88rem;
-}
-
-.radar-role-title-compact {
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: #f5f3ef;
-  margin: 2px 0 1px;
-  letter-spacing: -0.01em;
-}
-
-.radar-comp-loc {
-  font-size: 0.76rem;
-  color: #9c958f;
-  margin: 2px 0 0;
-}
-
-.remote-pill {
-  color: #38bdf8;
-  font-weight: 600;
-}
-
-.radar-match-column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.radar-match-badge {
-  font-size: 0.74rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 20px;
-  background: rgba(181, 70, 16, 0.18);
-  color: #e8803f;
-  border: 1px solid rgba(181, 70, 16, 0.4);
-}
-
-.radar-match-badge.high {
-  background: rgba(34, 197, 94, 0.16);
-  color: #4ade80;
-  border-color: rgba(34, 197, 94, 0.45);
-}
-
-.smb-fasttrack-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: linear-gradient(90deg, rgba(234, 88, 12, 0.2), rgba(245, 158, 11, 0.2));
-  border: 1px solid rgba(245, 158, 11, 0.5);
-  color: #fbbf24;
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 0.65rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-}
-
-/* Card Expand Indicator Button */
-.card-expand-indicator {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #d6d3cd;
-  padding: 3px 8px;
-  border-radius: 8px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
-  margin-top: 3px;
-}
-
-.radar-company-card:hover .card-expand-indicator,
-.radar-candidate-card:hover .card-expand-indicator {
-  background: rgba(232, 128, 63, 0.15);
-  border-color: rgba(232, 128, 63, 0.4);
-  color: #e8803f;
-}
-
-.expand-chevron {
-  font-size: 0.72rem;
-  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
-  display: inline-block;
-  line-height: 1;
-}
-
-.expand-chevron.open {
-  transform: rotate(180deg);
-  color: #e8803f;
-}
-
-/* ── EXPANDABLE DETAILS ACCORDION ────────────────────────────────────────── */
-.card-expandable-content {
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.28s ease, margin 0.3s ease, padding 0.3s ease;
-  pointer-events: none;
-}
-
-.radar-company-card.is-expanded .card-expandable-content,
-.radar-candidate-card.is-expanded .card-expandable-content {
-  max-height: 520px;
-  opacity: 1;
-  pointer-events: auto;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.cand-role-compact {
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: #e8803f;
-  margin: 2px 0;
-}
-
-/* Card Role & Stipend Details */
-.radar-role-title {
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: #f5f3ef;
-  margin: 8px 0 2px;
-  letter-spacing: -0.01em;
-}
-
-.radar-opp-type {
-  font-size: 0.74rem;
-  color: #e8803f;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin-bottom: 6px;
-}
-
-.radar-stipend-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: #9c958f;
-  margin-bottom: 10px;
-}
-
-.radar-stipend-val {
-  color: #4ade80;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 600;
-}
-
-.dot-sep {
-  color: #78716c;
-}
-
-.workmode-text {
-  color: #d6d3cd;
-}
-
-.radar-transit-pill-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.radar-transit-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 0.72rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.radar-metro-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  color: #4ade80;
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 0.72rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-/* Skill Tags with Micro-Interactions */
-.radar-skill-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 10px 0 14px;
-}
-
-.radar-skill-tag {
-  font-size: 0.74rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  color: #9c958f;
-}
-
-.radar-skill-tag.verified {
-  background: rgba(34, 197, 94, 0.12);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: #4ade80;
-  font-weight: 600;
-}
-
-.radar-skill-tag.clickable-gap {
-  cursor: pointer;
-  background: rgba(232, 128, 63, 0.12);
-  border-color: rgba(232, 128, 63, 0.4);
-  color: #e8803f;
-  transition: all 0.16s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.radar-skill-tag.clickable-gap:hover {
-  background: rgba(232, 128, 63, 0.22);
-  border-color: #e8803f;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(232, 128, 63, 0.3);
-}
-
-.radar-gap-hint {
-  font-size: 0.6rem;
-  background: #e8803f;
-  color: #121110;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-weight: 700;
-}
-
-.radar-comp-desc {
-  font-size: 0.8rem;
-  color: #9c958f;
-  margin: 0 0 14px;
-  line-height: 1.45;
-}
-
-/* Card Bottom Actions */
-.radar-card-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.radar-action-btn {
-  padding: 9px 16px;
-  border-radius: 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
-  text-decoration: none;
-}
-
-.radar-action-btn.primary {
-  background: linear-gradient(180deg, #c74d12, #a63d0c);
-  border: 1px solid #b54610;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(181, 70, 16, 0.4);
-}
-
-.radar-action-btn.primary:hover {
-  background: linear-gradient(180deg, #d95615, #b54610);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(181, 70, 16, 0.55);
-}
-
-.radar-action-btn.primary.full {
-  width: 100%;
-}
-
-.radar-secondary-link {
-  padding: 9px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.05);
-  color: #d6d3cd;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-
-.radar-secondary-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.22);
-  color: #fff;
-}
-
-.radar-secondary-link.map-focus-btn {
-  color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.3);
-}
-
-.radar-secondary-link.map-focus-btn:hover {
-  background: rgba(56, 189, 248, 0.14);
-}
-
-/* Recruiter View Candidate Card */
-.radar-candidate-card {
-  flex-shrink: 0;
-  min-height: auto;
-  background: rgba(20, 19, 18, 0.82);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 16px;
-  padding: 16px 18px;
-  cursor: pointer;
-  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.radar-candidate-card:hover {
-  transform: translateY(-2px);
-  border-color: #38bdf8;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-}
-
-.radar-candidate-card.active {
-  border-color: #38bdf8;
-  background: rgba(14, 28, 42, 0.4);
-  box-shadow: 0 0 0 1px #38bdf8, 0 14px 34px rgba(0, 0, 0, 0.6);
-}
-
-.radar-candidate-card.is-expanded {
-  background: rgba(16, 26, 38, 0.6);
-  border-color: #38bdf8;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.2);
-  padding: 18px 20px;
-}
-
-.cand-header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0;
-}
-
-.radar-candidate-card.is-expanded .cand-header-row {
-  margin-bottom: 4px;
-}
-
-.cand-title-block {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.cand-codename {
-  color: #fff;
-  font-size: 0.96rem;
-}
-
-.cand-sha-pill {
-  font-size: 0.68rem;
-  background: rgba(34, 197, 94, 0.15);
-  color: #4ade80;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.cand-loc-text {
-  font-size: 0.76rem;
-  color: #9c958f;
-  margin-top: 2px;
-}
-
-.cand-fit-badge {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: #38bdf8;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-.cand-role {
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: #e8803f;
-  margin-bottom: 6px;
-}
-
-.cand-depth {
-  font-size: 0.74rem;
-  color: #a3e635;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin-bottom: 8px;
-}
-
-.recruiter-invite-btn {
-  width: 100%;
-  background: linear-gradient(180deg, #0284c7, #0369a1);
-  border-color: #0284c7;
-}
-
-.radar-candidate-pin {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #0f172a;
-  border: 2px solid #38bdf8;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.6);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  position: relative;
-  transition: all 0.22s ease;
-}
-
-.radar-candidate-pin:hover, .radar-candidate-pin.active-pin {
-  transform: scale(1.3) translateY(-4px);
-  border-color: #fff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.9), 0 0 18px rgba(56, 189, 248, 0.95);
-  z-index: 1000;
-}
-
-/* Empty State */
-.radar-empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  background: rgba(20, 19, 18, 0.6);
-  border: 1px dashed rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
-}
-
-.radar-empty-state h3 {
-  font-size: 1.1rem;
-  color: #fff;
-  margin-bottom: 6px;
-}
-
-.radar-empty-state p {
-  color: #9c958f;
-  font-size: 0.84rem;
-  margin-bottom: 16px;
-}
-
-/* ── 5. ZERO-OVERLAP APPLE iOS 27 FIXED MODAL SHEETS (Now handled by native <dialog> JrSheet) ── */
-
-.ios-modal-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.ios-modal-badge {
-  font-size: 0.68rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-weight: 700;
-  color: #e8803f;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.ios-modal-title {
-  font-size: 1.28rem;
-  font-weight: 700;
-  color: #fff;
-  margin: 4px 0 0;
-  letter-spacing: -0.02em;
-}
-
-.ios-modal-close-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #9c958f;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.ios-modal-close-btn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
-  transform: scale(1.05);
-}
-
-.ios-modal-desc {
-  font-size: 0.84rem;
-  color: #9c958f;
-  margin: 0 0 16px;
-  line-height: 1.45;
-}
-
-/* 1-Click Banner Action */
-.ios-action-banner-btn {
-  width: 100%;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  border-radius: 12px;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.32, 0.72, 0, 1);
-}
-
-.ios-action-banner-btn:hover {
-  background: rgba(56, 189, 248, 0.22);
-  border-color: #38bdf8;
-  transform: translateY(-1px);
-}
-
-.banner-chevron {
-  color: #38bdf8;
-  font-size: 1.1rem;
-}
-
-.ios-preset-label {
-  font-size: 0.76rem;
-  color: #d6d3cd;
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-/* Origin Tiles Grid */
-.ios-origin-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.ios-origin-tile {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 10px 12px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.16s ease;
-  display: flex;
-  flex-direction: column;
-}
-
-.ios-origin-tile:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.ios-origin-tile.selected {
-  background: rgba(232, 128, 63, 0.16);
-  border-color: #e8803f;
-}
-
-.tile-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tile-name {
-  font-size: 0.8rem;
-  color: #fff;
-}
-
-.tile-sub {
-  font-size: 0.7rem;
-  color: #78716c;
-  margin-top: 2px;
-}
-
-.tile-check {
-  color: #e8803f;
-  font-weight: 700;
-}
-
-.ios-modal-footer-tip {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 0.74rem;
-  color: #9c958f;
-  line-height: 1.4;
-}
-
-/* Corridor Rows List */
-.ios-corridor-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 280px;
-  overflow-y: auto;
-}
-
-.ios-corridor-row {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 10px;
-  padding: 10px 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.16s ease;
-}
-
-.ios-corridor-row:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.16);
-}
-
-.ios-corridor-row.selected {
-  background: rgba(232, 128, 63, 0.16);
-  border-color: #e8803f;
-}
-
-.corridor-color-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* Filter Groups */
-.filter-group-block {
-  margin-bottom: 16px;
-}
-
-.filter-group-label {
-  font-size: 0.76rem;
-  color: #9c958f;
-  margin-bottom: 6px;
-  display: block;
-}
-
-.filter-options-grid {
-  display: grid;
-  gap: 6px;
-}
-
-.filter-options-grid.three-col {
-  grid-template-columns: repeat(3, 1fr);
-}
-
-.filter-options-grid.four-col {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.filter-btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: #d6d3cd;
-  font-size: 0.76rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: center;
-}
-
-.filter-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.filter-btn.active {
-  background: rgba(232, 128, 63, 0.18);
-  border-color: #e8803f;
-  color: #e8803f;
-  font-weight: 600;
-}
-
-.ios-reset-filters-btn {
-  background: transparent;
-  border: none;
-  color: #e8803f;
-  font-size: 0.74rem;
-  cursor: pointer;
-  padding: 4px 8px;
-}
-
-.ios-reset-filters-btn:hover {
-  text-decoration: underline;
-}
-
-.ios-text-input {
-  width: 100%;
-  padding: 10px 14px;
-  background: #121110;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #fff;
-  border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
-  outline: none;
-}
-
-.ios-text-input:focus {
-  border-color: #e8803f;
-  box-shadow: 0 0 0 3px rgba(232, 128, 63, 0.2);
-}
-
-/* Proof-Gap & Application Details */
-.proofgap-commit-card, .apply-summary-card {
-  background: rgba(12, 11, 10, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 14px;
-  margin: 14px 0;
-  font-size: 0.8rem;
-}
-
-.proofgap-snippet {
-  background: #080706;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 10px;
-  margin-top: 8px;
-  color: #a3e635;
-  font-size: 0.74rem;
-  overflow-x: auto;
-  line-height: 1.45;
-}
-
-.proofgap-success-banner {
-  background: rgba(34, 197, 94, 0.15);
-  border: 1px solid rgba(34, 197, 94, 0.4);
-  border-radius: 8px;
-  padding: 14px;
-  text-align: center;
-  color: #4ade80;
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 6px;
-  font-size: 0.82rem;
-  color: #9c958f;
-}
-
-.summary-row:last-child {
-  margin-bottom: 0;
-}
+/* ==========================================================================
+   ProofPass - Job Radar & Commute Engine (Apple iOS 27 Design System)
+   Inspired by Apple Maps, Dynamic Island, and Liquid Glassmorphism
+   Zero-Overlap Guaranteed via Isolated Fixed Modal Sheets & Strict Flex Bounds
+   ========================================================================== */
+
+/* Root Page Container */
+.radar-page {
+  padding-bottom: 60px;
+  color: #f5f3ef;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 1. APPLE iOS 27 DYNAMIC ISLAND COMMAND CAPSULE ───────────────────────── */
+.ios-dynamic-island-shell {
+  position: relative;
+  z-index: 60;
+  margin-bottom: 16px;
+}
+
+.ios-island-capsule {
+  background: rgba(18, 17, 16, 0.76);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Left: Dynamic Beacon & Branding */
+.ios-island-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ios-radar-beacon {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(232, 128, 63, 0.15);
+  border: 1.5px solid rgba(232, 128, 63, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.beacon-core {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e8803f;
+  box-shadow: 0 0 10px #e8803f;
+}
+
+.beacon-sonar {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(232, 128, 63, 0.45);
+  animation: radarSonarPulse 2.4s infinite ease-out;
+  pointer-events: none;
+}
+
+@keyframes radarSonarPulse {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.ios-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.ios-app-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.ios-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 12px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  letter-spacing: 0.05em;
+}
+
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+  animation: pulseDot 1.6s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(0.85); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+.ios-app-subtitle {
+  font-size: 0.72rem;
+  color: #9c958f;
+  letter-spacing: -0.01em;
+}
+
+/* Center: Expanding Search Island */
+.ios-search-capsule {
+  flex: 1;
+  max-width: 440px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  padding: 7px 12px;
+  transition: all 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ios-search-capsule:focus-within {
+  background: rgba(0, 0, 0, 0.45);
+  border-color: #e8803f;
+  box-shadow: 0 0 0 3px rgba(232, 128, 63, 0.2);
+  max-width: 500px;
+}
+
+.ios-search-capsule svg {
+  color: #9c958f;
+  flex-shrink: 0;
+}
+
+.ios-search-capsule input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.ios-search-capsule input::placeholder {
+  color: #78716c;
+  font-size: 0.8rem;
+}
+
+.ios-search-clear {
+  background: transparent;
+  border: none;
+  color: #9c958f;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.ios-search-clear:hover {
+  color: #fff;
+}
+
+/* Right: Action Pills */
+.ios-action-capsules {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ios-pill-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d6d3cd;
+  padding: 7px 12px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  white-space: nowrap;
+}
+
+.ios-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.ios-pill-btn.active-green {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+}
+
+.ios-pill-btn.active-orange {
+  background: rgba(232, 128, 63, 0.14);
+  border-color: rgba(232, 128, 63, 0.45);
+  color: #e8803f;
+}
+
+.ios-pill-btn.active-amber {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: #fbbf24;
+}
+
+.pill-text-truncate {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill-badge {
+  background: #b54610;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.gps-action-btn {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.gps-action-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+.gps-action-btn.spinning span:first-child {
+  display: inline-block;
+  animation: spinIcon 1.2s infinite linear;
+}
+
+@keyframes spinIcon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Apple Segmented Switch */
+.ios-segmented-control {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.ios-seg-btn {
+  background: transparent;
+  border: none;
+  color: #9c958f;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  white-space: nowrap;
+}
+
+.ios-seg-btn:hover {
+  color: #fff;
+}
+
+.ios-seg-btn.selected {
+  background: #b54610;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(181, 70, 16, 0.45);
+}
+
+/* Toast Pill */
+.ios-island-toast-pill {
+  margin-top: 8px;
+  background: rgba(18, 17, 16, 0.92);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 12px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: #4ade80;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  animation: slideDownFade 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.toast-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+}
+
+@keyframes slideDownFade {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 2. MAIN SPLIT GRID (MAP VIEWPORT + LISTINGS) ─────────────────────────── */
+.radar-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(380px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .radar-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Map Viewport Container */
+.radar-viewport-container {
+  background: #0f0e0d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  height: 680px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* Floating HUD Controls on Map */
+.radar-floating-hud-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  gap: 10px;
+}
+
+.hud-capsule {
+  pointer-events: auto;
+  background: rgba(18, 17, 16, 0.88);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  padding: 6px 14px;
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #e8803f;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-pulse-ring {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e8803f;
+  box-shadow: 0 0 8px #e8803f;
+}
+
+.hud-theme-picker {
+  pointer-events: auto;
+  background: rgba(18, 17, 16, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 3px;
+  display: flex;
+  gap: 3px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.hud-theme-btn {
+  background: transparent;
+  border: none;
+  color: #9c958f;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  white-space: nowrap;
+}
+
+.hud-theme-btn:hover {
+  color: #fff;
+}
+
+.hud-theme-btn.active {
+  background: #b54610;
+  color: #fff;
+  font-weight: 600;
+}
+
+.hud-theme-btn.license-btn {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  color: #38bdf8;
+}
+
+/* Floating Transit Bottom HUD (OSRM Real Road Powered) */
+.radar-floating-transit-hud {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 500;
+  background: rgba(18, 17, 16, 0.92);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(232, 128, 63, 0.45);
+  border-radius: 14px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
+  animation: slideUpSpring 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes slideUpSpring {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.transit-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.transit-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: #fff;
+}
+
+.transit-badge-road {
+  font-size: 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  background: rgba(232, 128, 63, 0.16);
+  border: 1px solid rgba(232, 128, 63, 0.4);
+  color: #e8803f;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.transit-metrics {
+  font-size: 0.76rem;
+  color: #d6d3cd;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.transit-time-highlight {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.transit-sep {
+  color: #78716c;
+}
+
+.transit-corridor {
+  color: #9c958f;
+}
+
+.transit-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.transit-metro {
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #4ade80;
+}
+
+.transit-gmaps-link {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #e8803f;
+  text-decoration: none;
+  background: rgba(232, 128, 63, 0.12);
+  border: 1px solid rgba(232, 128, 63, 0.35);
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.transit-gmaps-link:hover {
+  background: rgba(232, 128, 63, 0.22);
+  color: #fff;
+}
+
+/* Leaflet Canvas Element */
+.leaflet-map-element {
+  width: 100%;
+  height: 100%;
+  background: #0d0c0b;
+  z-index: 1;
+}
+
+/* Tile Filters for Clean Contrast */
+.leaflet-dark-tiles img {
+  filter: brightness(0.68) invert(1) contrast(2.6) hue-rotate(200deg) saturate(0.28) !important;
+}
+
+.leaflet-clean-streets img {
+  filter: contrast(1.05) saturate(1.1) !important;
+}
+
+.leaflet-satellite-tiles img {
+  filter: contrast(1.1) brightness(0.95) !important;
+}
+
+/* ── 3. MAP PINS & COMMUTE BEACONS ────────────────────────────────────────── */
+.clean-marker-container {
+  background: transparent;
+  border: none;
+}
+
+.radar-clean-pin {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #181615;
+  border: 2px solid #b54610;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.8), 0 0 12px rgba(181, 70, 16, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.radar-clean-pin:hover, .radar-clean-pin.active-pin {
+  transform: scale(1.3) translateY(-4px);
+  border-color: #fff;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.95), 0 0 20px rgba(232, 128, 63, 0.95);
+  z-index: 1000;
+}
+
+.radar-clean-pin .pin-score {
+  font-size: 0.62rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  color: #e8803f;
+  line-height: 1;
+}
+
+.radar-clean-pin .pin-initials {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.1;
+}
+
+.radar-clean-pin .pin-expanded-label {
+  position: absolute;
+  bottom: 46px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(18, 17, 16, 0.94);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+}
+
+.radar-clean-pin:hover .pin-expanded-label,
+.radar-clean-pin.active-pin .pin-expanded-label {
+  opacity: 1;
+}
+
+/* Draggable Origin Marker */
+.user-marker-container {
+  background: transparent;
+  border: none;
+}
+
+.radar-user-map-pin {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.radar-user-map-pin:active {
+  cursor: grabbing;
+}
+
+.user-pin-core {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #38bdf8;
+  border: 2px solid #fff;
+  box-shadow: 0 0 12px #38bdf8;
+  z-index: 2;
+}
+
+.user-pin-ring {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(56, 189, 248, 0.25);
+  border: 1.5px solid rgba(56, 189, 248, 0.6);
+  animation: pulseOriginRing 2s infinite ease-out;
+  z-index: 1;
+}
+
+@keyframes pulseOriginRing {
+  0% { transform: scale(0.6); opacity: 0.95; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Animated Transit Road Line */
+.transit-route-line {
+  stroke: #e8803f;
+  stroke-width: 5;
+  stroke-dasharray: 8, 8;
+  animation: transitDash 1.5s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(232, 128, 63, 0.8));
+}
+
+@keyframes transitDash {
+  from { stroke-dashoffset: 32; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── 4. APPLE LIQUID GLASS JOB CARDS (INTERACTIVE EXPANDABLE) ────────────── */
+.radar-listings-scroll {
+  max-height: 680px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-right: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.radar-listings-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.radar-listings-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.radar-listings-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+}
+
+.radar-listings-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(232, 128, 63, 0.45);
+}
+
+/* Listings Header & Quick Expand Pill */
+.radar-listings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 6px;
+  flex-shrink: 0;
+}
+
+.listings-count-badge {
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #9c958f;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.expand-all-pill-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d6d3cd;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.expand-all-pill-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(232, 128, 63, 0.4);
+  color: #fff;
+}
+
+/* The Card Container: Compact in Default State, Springs Open on Click */
+.radar-company-card {
+  flex-shrink: 0;
+  min-height: auto;
+  background: rgba(22, 20, 18, 0.76);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+}
+
+.radar-company-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(232, 128, 63, 0.05), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.radar-company-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(232, 128, 63, 0.45);
+  background: rgba(28, 25, 23, 0.88);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 16px rgba(232, 128, 63, 0.14);
+}
+
+.radar-company-card:hover::before {
+  opacity: 1;
+}
+
+.radar-company-card.active {
+  border-color: #e8803f;
+  background: rgba(30, 26, 24, 0.95);
+  box-shadow: 0 0 0 1px #e8803f, 0 14px 36px rgba(0, 0, 0, 0.6);
+}
+
+.radar-company-card.is-expanded {
+  background: rgba(26, 23, 21, 0.96);
+  border-color: rgba(232, 128, 63, 0.65);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.65), 0 0 20px rgba(232, 128, 63, 0.16);
+  padding: 18px 20px;
+}
+
+.radar-company-card.smb-card {
+  border-left: 3.5px solid #fbbf24;
+}
+
+/* Card Header Row */
+.radar-comp-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.radar-company-card.is-expanded .radar-comp-top-row {
+  margin-bottom: 4px;
+}
+
+.radar-comp-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.radar-entity-frame {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #1a1817;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.radar-entity-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+  padding: 2px;
+  border-radius: inherit;
+}
+
+.radar-avatar-badge {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.radar-name-block {
+  display: flex;
+  flex-direction: column;
+}
+
+.radar-comp-name {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.01em;
+}
+
+.corporate-verified-check {
+  color: #4ade80;
+  font-size: 0.88rem;
+}
+
+.radar-role-title-compact {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #f5f3ef;
+  margin: 2px 0 1px;
+  letter-spacing: -0.01em;
+}
+
+.radar-comp-loc {
+  font-size: 0.76rem;
+  color: #9c958f;
+  margin: 2px 0 0;
+}
+
+.remote-pill {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.radar-match-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.radar-match-badge {
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: rgba(181, 70, 16, 0.18);
+  color: #e8803f;
+  border: 1px solid rgba(181, 70, 16, 0.4);
+}
+
+.radar-match-badge.high {
+  background: rgba(34, 197, 94, 0.16);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.45);
+}
+
+.smb-fasttrack-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(90deg, rgba(234, 88, 12, 0.2), rgba(245, 158, 11, 0.2));
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  color: #fbbf24;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+}
+
+/* Card Expand Indicator Button */
+.card-expand-indicator {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #d6d3cd;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  margin-top: 3px;
+}
+
+.radar-company-card:hover .card-expand-indicator,
+.radar-candidate-card:hover .card-expand-indicator {
+  background: rgba(232, 128, 63, 0.15);
+  border-color: rgba(232, 128, 63, 0.4);
+  color: #e8803f;
+}
+
+.expand-chevron {
+  font-size: 0.72rem;
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  display: inline-block;
+  line-height: 1;
+}
+
+.expand-chevron.open {
+  transform: rotate(180deg);
+  color: #e8803f;
+}
+
+/* ── EXPANDABLE DETAILS ACCORDION ────────────────────────────────────────── */
+.card-expandable-content {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.28s ease, margin 0.3s ease, padding 0.3s ease;
+  pointer-events: none;
+}
+
+.radar-company-card.is-expanded .card-expandable-content,
+.radar-candidate-card.is-expanded .card-expandable-content {
+  max-height: 520px;
+  opacity: 1;
+  pointer-events: auto;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cand-role-compact {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #e8803f;
+  margin: 2px 0;
+}
+
+/* Card Role & Stipend Details */
+.radar-role-title {
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #f5f3ef;
+  margin: 8px 0 2px;
+  letter-spacing: -0.01em;
+}
+
+.radar-opp-type {
+  font-size: 0.74rem;
+  color: #e8803f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 6px;
+}
+
+.radar-stipend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: #9c958f;
+  margin-bottom: 10px;
+}
+
+.radar-stipend-val {
+  color: #4ade80;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.dot-sep {
+  color: #78716c;
+}
+
+.workmode-text {
+  color: #d6d3cd;
+}
+
+.radar-transit-pill-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.radar-transit-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.radar-metro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Skill Tags with Micro-Interactions */
+.radar-skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+
+.radar-skill-tag {
+  font-size: 0.74rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #9c958f;
+}
+
+.radar-skill-tag.verified {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.radar-skill-tag.clickable-gap {
+  cursor: pointer;
+  background: rgba(232, 128, 63, 0.12);
+  border-color: rgba(232, 128, 63, 0.4);
+  color: #e8803f;
+  transition: all 0.16s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.radar-skill-tag.clickable-gap:hover {
+  background: rgba(232, 128, 63, 0.22);
+  border-color: #e8803f;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(232, 128, 63, 0.3);
+}
+
+.radar-gap-hint {
+  font-size: 0.6rem;
+  background: #e8803f;
+  color: #121110;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.radar-comp-desc {
+  font-size: 0.8rem;
+  color: #9c958f;
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+/* Card Bottom Actions */
+.radar-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.radar-action-btn {
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+  text-decoration: none;
+}
+
+.radar-action-btn.primary {
+  background: linear-gradient(180deg, #c74d12, #a63d0c);
+  border: 1px solid #b54610;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(181, 70, 16, 0.4);
+}
+
+.radar-action-btn.primary:hover {
+  background: linear-gradient(180deg, #d95615, #b54610);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(181, 70, 16, 0.55);
+}
+
+.radar-action-btn.primary.full {
+  width: 100%;
+}
+
+.radar-secondary-link {
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d6d3cd;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.radar-secondary-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.radar-secondary-link.map-focus-btn {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.radar-secondary-link.map-focus-btn:hover {
+  background: rgba(56, 189, 248, 0.14);
+}
+
+/* Recruiter View Candidate Card */
+.radar-candidate-card {
+  flex-shrink: 0;
+  min-height: auto;
+  background: rgba(20, 19, 18, 0.82);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.radar-candidate-card:hover {
+  transform: translateY(-2px);
+  border-color: #38bdf8;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.radar-candidate-card.active {
+  border-color: #38bdf8;
+  background: rgba(14, 28, 42, 0.4);
+  box-shadow: 0 0 0 1px #38bdf8, 0 14px 34px rgba(0, 0, 0, 0.6);
+}
+
+.radar-candidate-card.is-expanded {
+  background: rgba(16, 26, 38, 0.6);
+  border-color: #38bdf8;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.2);
+  padding: 18px 20px;
+}
+
+.cand-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0;
+}
+
+.radar-candidate-card.is-expanded .cand-header-row {
+  margin-bottom: 4px;
+}
+
+.cand-title-block {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cand-codename {
+  color: #fff;
+  font-size: 0.96rem;
+}
+
+.cand-sha-pill {
+  font-size: 0.68rem;
+  background: rgba(34, 197, 94, 0.15);
+  color: #4ade80;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cand-loc-text {
+  font-size: 0.76rem;
+  color: #9c958f;
+  margin-top: 2px;
+}
+
+.cand-fit-badge {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #38bdf8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cand-role {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #e8803f;
+  margin-bottom: 6px;
+}
+
+.cand-depth {
+  font-size: 0.74rem;
+  color: #a3e635;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  margin-bottom: 8px;
+}
+
+.recruiter-invite-btn {
+  width: 100%;
+  background: linear-gradient(180deg, #0284c7, #0369a1);
+  border-color: #0284c7;
+}
+
+.radar-candidate-pin {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #0f172a;
+  border: 2px solid #38bdf8;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.22s ease;
+}
+
+.radar-candidate-pin:hover, .radar-candidate-pin.active-pin {
+  transform: scale(1.3) translateY(-4px);
+  border-color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.9), 0 0 18px rgba(56, 189, 248, 0.95);
+  z-index: 1000;
+}
+
+/* Empty State */
+.radar-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  background: rgba(20, 19, 18, 0.6);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+}
+
+.radar-empty-state h3 {
+  font-size: 1.1rem;
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.radar-empty-state p {
+  color: #9c958f;
+  font-size: 0.84rem;
+  margin-bottom: 16px;
+}
+
+/* ── 5. ZERO-OVERLAP APPLE iOS 27 FIXED MODAL SHEETS (Now handled by native <dialog> JrSheet) ── */
+
+.ios-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ios-modal-badge {
+  font-size: 0.68rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  color: #e8803f;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ios-modal-title {
+  font-size: 1.28rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 4px 0 0;
+  letter-spacing: -0.02em;
+}
+
+.ios-modal-close-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9c958f;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.ios-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+.ios-modal-desc {
+  font-size: 0.84rem;
+  color: #9c958f;
+  margin: 0 0 16px;
+  line-height: 1.45;
+}
+
+/* 1-Click Banner Action */
+.ios-action-banner-btn {
+  width: 100%;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.ios-action-banner-btn:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+
+.banner-chevron {
+  color: #38bdf8;
+  font-size: 1.1rem;
+}
+
+.ios-preset-label {
+  font-size: 0.76rem;
+  color: #d6d3cd;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Origin Tiles Grid */
+.ios-origin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ios-origin-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.ios-origin-tile:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ios-origin-tile.selected {
+  background: rgba(232, 128, 63, 0.16);
+  border-color: #e8803f;
+}
+
+.tile-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tile-name {
+  font-size: 0.8rem;
+  color: #fff;
+}
+
+.tile-sub {
+  font-size: 0.7rem;
+  color: #78716c;
+  margin-top: 2px;
+}
+
+.tile-check {
+  color: #e8803f;
+  font-weight: 700;
+}
+
+.ios-modal-footer-tip {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  color: #9c958f;
+  line-height: 1.4;
+}
+
+/* Corridor Rows List */
+.ios-corridor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ios-corridor-row {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.ios-corridor-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ios-corridor-row.selected {
+  background: rgba(232, 128, 63, 0.16);
+  border-color: #e8803f;
+}
+
+.corridor-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Filter Groups */
+.filter-group-block {
+  margin-bottom: 16px;
+}
+
+.filter-group-label {
+  font-size: 0.76rem;
+  color: #9c958f;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.filter-options-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-options-grid.three-col {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.filter-options-grid.four-col {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.filter-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #d6d3cd;
+  font-size: 0.76rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.filter-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.filter-btn.active {
+  background: rgba(232, 128, 63, 0.18);
+  border-color: #e8803f;
+  color: #e8803f;
+  font-weight: 600;
+}
+
+.ios-reset-filters-btn {
+  background: transparent;
+  border: none;
+  color: #e8803f;
+  font-size: 0.74rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.ios-reset-filters-btn:hover {
+  text-decoration: underline;
+}
+
+.ios-text-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: #121110;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.ios-text-input:focus {
+  border-color: #e8803f;
+  box-shadow: 0 0 0 3px rgba(232, 128, 63, 0.2);
+}
+
+/* Proof-Gap & Application Details */
+.proofgap-commit-card, .apply-summary-card {
+  background: rgba(12, 11, 10, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 14px 0;
+  font-size: 0.8rem;
+}
+
+.proofgap-snippet {
+  background: #080706;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  color: #a3e635;
+  font-size: 0.74rem;
+  overflow-x: auto;
+  line-height: 1.45;
+}
+
+.proofgap-success-banner {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+  color: #4ade80;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+  color: #9c958f;
+}
+
+.summary-row:last-child {
+  margin-bottom: 0;
+}

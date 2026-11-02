@@ -49,3 +49,4 @@ export default function MatchRing({ score = 0, size = 38, strokeWidth = 3.5 }) {
     </div>
   )
 }
+
