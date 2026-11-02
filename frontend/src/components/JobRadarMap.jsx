@@ -336,74 +336,71 @@ export default function JobRadarMap() {
     return 'Pune'
   }
 
-  // ── INDUSTRIAL-GRADE PRECISE CANDIDATE LOCATION ENGINE ──────────────────
-  // Verified physical device coordinates (Katraj, Kondhwa Budruk, Pune, 411406)
-  const VERIFIED_DEVICE_ANCHOR = {
-    lat: 18.45015,
-    lng: 73.86987,
-    locality: 'Katraj, Kondhwa Budruk'
-  }
-
+  // ── PURE LIVE DEVICE GPS LOCATION ENGINE ────────────────────────────────
+  // Directly acquires exact physical coordinates from user's device hardware/OS
   const handleDetectLocation = useCallback(async () => {
     setLocating(true)
     setLocationStatus('detecting')
     setActiveModal(null)
 
-    // Helper: update user position once coordinates are determined
-    const applyResolvedPosition = async (rawLat, rawLng, accuracyMeters, providerName) => {
-      // Check proximity to verified home anchor in Katraj/Kondhwa (within 1.8km radius)
-      const distToAnchor = calculateDistanceKm(rawLat, rawLng, VERIFIED_DEVICE_ANCHOR.lat, VERIFIED_DEVICE_ANCHOR.lng)
-      const isAnchorProximity = distToAnchor <= 1.8
-
-      // If nearby or Wi-Fi jitter detected, snap with 100% precision to the exact coordinates
-      const finalLat = isAnchorProximity ? VERIFIED_DEVICE_ANCHOR.lat : Number(rawLat.toFixed(5))
-      const finalLng = isAnchorProximity ? VERIFIED_DEVICE_ANCHOR.lng : Number(rawLng.toFixed(5))
-      const locality = isAnchorProximity ? VERIFIED_DEVICE_ANCHOR.locality : await reverseGeocodeLocality(finalLat, finalLng)
-
-      const cleanName = `Live GPS · ${locality}`
-      const coords = {
-        name: cleanName,
-        city: 'Pune',
-        lat: finalLat,
-        lng: finalLng,
-        zoom: 15,
-        accuracy: isAnchorProximity ? 15 : accuracyMeters
-      }
-
-      setUserCoords(coords)
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setLocating(false)
-      setLocationStatus('locked')
-      setLocationToast(`📍 Live Location Locked: ${locality}`)
-      setTimeout(() => setLocationToast(null), 3500)
-
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.flyTo([coords.lat, coords.lng], 15, { duration: 0.9 })
-      }
+      setLocationStatus('fallback')
+      setLocationToast('Geolocation is not supported by your browser')
+      setTimeout(() => setLocationToast(null), 4000)
+      return
     }
 
-    // Attempt browser HTML5 Geolocation with high accuracy
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude
-          const lng = pos.coords.longitude
-          const acc = Math.round(pos.coords.accuracy || 15)
-          await applyResolvedPosition(lat, lng, acc, 'Live Device GPS')
-        },
-        async (err) => {
-          console.warn('Browser GPS notice:', err.message)
-          // Instant lock to verified device anchor if permission denied or desktop timeout
-          await applyResolvedPosition(VERIFIED_DEVICE_ANCHOR.lat, VERIFIED_DEVICE_ANCHOR.lng, 15, 'Verified Device GPS Anchor')
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 6000,
-          maximumAge: 30000
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6))
+        const lng = Number(pos.coords.longitude.toFixed(6))
+        const acc = Math.round(pos.coords.accuracy || 15)
+
+        // Authentically reverse geocode user's exact device coordinates
+        const locality = await reverseGeocodeLocality(lat, lng)
+        const cleanName = `Live GPS · ${locality}`
+
+        const coords = {
+          name: cleanName,
+          city: 'Pune',
+          lat,
+          lng,
+          zoom: 15,
+          accuracy: acc
         }
-      )
-    } else {
-      await applyResolvedPosition(VERIFIED_DEVICE_ANCHOR.lat, VERIFIED_DEVICE_ANCHOR.lng, 15, 'Verified Device GPS Anchor')
-    }
+
+        setUserCoords(coords)
+        setLocating(false)
+        setLocationStatus('locked')
+        setLocationToast(`📍 Live Location Locked: ${locality}`)
+        setTimeout(() => setLocationToast(null), 3500)
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 0.9 })
+        }
+      },
+      (err) => {
+        console.warn('Geolocation notice:', err.message)
+        setLocating(false)
+        setLocationStatus('fallback')
+        if (err.code === 1) {
+          setLocationToast('⚠️ Location access denied in browser. Please enable permissions.')
+        } else if (err.code === 2) {
+          setLocationToast('⚠️ Device position unavailable. Check GPS/Wi-Fi.')
+        } else if (err.code === 3) {
+          setLocationToast('⚠️ GPS location request timed out. Please try again.')
+        } else {
+          setLocationToast('⚠️ Could not acquire device GPS.')
+        }
+        setTimeout(() => setLocationToast(null), 4000)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 10000
+      }
+    )
   }, [])
 
   // Auto-detect on first load
