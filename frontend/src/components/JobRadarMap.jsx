@@ -1247,27 +1247,7 @@ export default function JobRadarMap() {
               })
             )}
 
-            {/* WP9: About this data & Footnotes */}
-            <footer className="jr-footnotes" aria-label="About this data">
-              <div className="jr-footnotes__header">
-                <span className="jr-footnotes__badge">DATA TRANSPARENCY</span>
-                <h4 className="jr-footnotes__title">About this data</h4>
-              </div>
-              <ul className="jr-footnotes__list">
-                <li>
-                  <sup className="jr-sup">[1]</sup> <strong>Match calculation:</strong> Computed as <code>(verified candidate skills / required role skills) &times; 100</code> based on linked git repository proof assessments.
-                </li>
-                <li>
-                  <sup className="jr-sup">[2]</sup> <strong>Commute times:</strong> Turn-by-turn driving routing powered by the public <a href="https://router.project-osrm.org/" target="_blank" rel="noopener noreferrer">Project OSRM</a> API over OpenStreetMap roadway geometry. Real-time traffic congestion is not included.
-                </li>
-                <li>
-                  <sup className="jr-sup">[3]</sup> <strong>Corporate logos:</strong> Deterministic high-resolution brand SVGs with Google Favicon (128px) fallback.
-                </li>
-                <li>
-                  <sup className="jr-sup">[4]</sup> <strong>Cryptographic verification:</strong> <span className="jr-simulated-tag">Demo data / Simulated</span> SHA-256 git blame verification and proof stamping demonstration for hackathon evaluation.
-                </li>
-              </ul>
-            </footer>
+
           </div>
         </div>
       </div>

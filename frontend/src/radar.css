@@ -688,7 +688,7 @@
 
 /* ── 4. APPLE LIQUID GLASS JOB CARDS (INTERACTIVE EXPANDABLE) ────────────── */
 .radar-listings-scroll {
-  max-height: 680px;
+  max-height: calc(100dvh - var(--jr-capsule-h, 72px) - 32px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
