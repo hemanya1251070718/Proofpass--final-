@@ -32,6 +32,9 @@ import JrSheet from './JrSheet.jsx'
 import JrSegmented from './JrSegmented.jsx'
 import JobCard, { JobCardSkeleton } from './JobCard.jsx'
 import MatchRing from './MatchRing.jsx'
+import gsap from 'gsap'
+import JrLottie, { LOTTIE_RADAR_SONAR, LOTTIE_SUCCESS_CHECK } from './JrLottie.jsx'
+import JrThreeHologram from './JrThreeHologram.jsx'
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -866,6 +869,29 @@ export default function JobRadarMap() {
     }, 2000)
   }
 
+  // ── GSAP MICRO-INTERACTIONS ──────────────────────────────────────────
+  // Staggered card list entrance motion
+  useEffect(() => {
+    if (typeof window !== 'undefined' && filteredCompanies.length > 0) {
+      gsap.fromTo(
+        '.jr-card',
+        { opacity: 0, y: 14 },
+        { opacity: 1, y: 0, duration: 0.32, stagger: 0.03, ease: 'power2.out', clearProps: 'transform' }
+      )
+    }
+  }, [filteredCompanies.length, perspective, selectedSezCorridor, workModeFilter])
+
+  // Real road transit banner smooth entrance
+  useEffect(() => {
+    if (roadRouteData.durationMin) {
+      gsap.fromTo(
+        '.radar-live-transit-banner',
+        { opacity: 0, y: 12, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: 'back.out(1.3)' }
+      )
+    }
+  }, [roadRouteData.durationMin, selectedCompany?.id])
+
   // Count active filter criteria
   const activeFiltersCount = (radiusFilter !== 'all' ? 1 : 0) + (workModeFilter !== 'ALL' ? 1 : 0) + (tierFilter !== 'ALL' ? 1 : 0)
 
@@ -883,9 +909,8 @@ export default function JobRadarMap() {
           <div className="ios-island-capsule">
             {/* Left: Dynamic Beacon & Branding */}
             <div className="ios-island-brand">
-              <div className="ios-radar-beacon">
-                <span className="beacon-core" />
-                <span className="beacon-sonar" />
+              <div className="ios-radar-beacon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <JrLottie animationData={LOTTIE_RADAR_SONAR} width={28} height={28} />
               </div>
               <div className="ios-brand-text">
                 <div className="ios-app-title">
@@ -1030,8 +1055,8 @@ export default function JobRadarMap() {
           <div className="radar-viewport-container jr-map">
             {/* Top Floating Controls on Map */}
             <div className="radar-floating-hud-top">
-              <div className="hud-capsule">
-                <span className="hud-pulse-ring" />
+              <div className="hud-capsule" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <JrThreeHologram size={20} color={0xe8803f} />
                 <span>
                   {perspective === 'candidate'
                     ? `${filteredCompanies.length} Verified Tech Openings`
@@ -1564,8 +1589,9 @@ export default function JobRadarMap() {
             </div>
 
             {proofGapSigned ? (
-              <div className="proofgap-success-banner">
-                ✓ Commit Evidence Cryptographically Stamped into Passport! Skill Verified!
+              <div className="proofgap-success-banner" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <JrLottie animationData={LOTTIE_SUCCESS_CHECK} loop={false} width={28} height={28} />
+                <span>Commit Evidence Cryptographically Stamped into Passport! Skill Verified!</span>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -1625,8 +1651,9 @@ export default function JobRadarMap() {
             </div>
 
             {appliedSuccess ? (
-              <div className="proofgap-success-banner">
-                ✓ Application Dispatched to {applyModalCompany.name} HR Portal!
+              <div className="proofgap-success-banner" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <JrLottie animationData={LOTTIE_SUCCESS_CHECK} loop={false} width={28} height={28} />
+                <span>Application Dispatched to {applyModalCompany.name} HR Portal!</span>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: '10px' }}>
