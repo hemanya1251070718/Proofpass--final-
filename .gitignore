@@ -24,3 +24,6 @@ passport_payload.json
 
 # Local ProofPass database
 proofpass.db
+
+# Media & recordings
+*.mp4
