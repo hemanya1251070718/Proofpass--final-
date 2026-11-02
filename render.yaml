@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: proofpass
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: INTELLIGENCE_FALLBACK_TO_MOCK
+        value: "true"
+      - key: DATABASE_URL
+        value: sqlite:///./proofpass.db
+      - key: COOKIE_SECURE
+        value: "true"
