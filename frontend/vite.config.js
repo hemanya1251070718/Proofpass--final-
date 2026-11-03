@@ -1,17 +1,10 @@
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
-export default defineConfig(({ mode }) => {
-  const rootEnv = loadEnv(mode, path.resolve(__dirname, '..'), '')
-  const localEnv = loadEnv(mode, path.resolve(__dirname), '')
-  const githubToken = localEnv.VITE_GITHUB_TOKEN || rootEnv.VITE_GITHUB_TOKEN || ''
-
+// NOTE: no GitHub token is injected into the browser bundle. GITHUB_TOKEN is backend-only.
+export default defineConfig(() => {
   return {
     plugins: [react()],
-    define: {
-      'import.meta.env.VITE_GITHUB_TOKEN': JSON.stringify(githubToken),
-    },
     server: {
       proxy: {
         '/api': {

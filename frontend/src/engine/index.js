@@ -1,9 +1,3 @@
+// Verification authority lives on the backend (see engine/backendVerification.js).
+// The legacy client-side step modules (step1..step8) are no longer part of the app and are not exported here.
 export * from './intake.js'
-export * from './step1_read.js'
-export * from './step2_propose.js'
-export * from './step3_check_evidence.js'
-export * from './step4_authorship.js'
-export * from './step5_assign_states.js'
-export * from './step6_micro_checks.js'
-export * from './step7_role_match.js'
-export * from './step8_issue_passport.js'

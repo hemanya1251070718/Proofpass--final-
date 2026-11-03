@@ -32,6 +32,12 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture
+def applicant(client):
+    from tests.auth_helpers import register
+    return register(client, "applicant")
+
+
 @pytest.fixture(autouse=True)
 def setup_auth_env(monkeypatch):
     monkeypatch.setenv("GITHUB_CLIENT_ID", "test_client_id_123")
@@ -173,7 +179,7 @@ def test_verify_without_session_returns_401(client):
     assert "Authentication required" in res.json()["detail"]
 
 
-def test_verify_rejects_repo_owned_by_someone_else(client):
+def test_verify_rejects_repo_owned_by_someone_else(client, applicant):
     token = create_session_token(github_login="alexrivera", github_id=987654)
     client.cookies.set(SESSION_COOKIE_NAME, token)
 
@@ -192,7 +198,7 @@ def test_verify_rejects_repo_owned_by_someone_else(client):
     assert "not owned by authenticated user @alexrivera" in detail
 
 
-def test_verify_ignores_spoofed_github_url_and_sets_ownership_and_id(client):
+def test_verify_ignores_spoofed_github_url_and_sets_ownership_and_id(client, applicant):
     token = create_session_token(github_login="alexrivera", github_id=987654)
     client.cookies.set(SESSION_COOKIE_NAME, token)
 

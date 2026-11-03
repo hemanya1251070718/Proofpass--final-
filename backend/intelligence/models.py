@@ -70,6 +70,7 @@ class Evidence(BaseModel):
     authorship_signal: AuthorshipSignal = AuthorshipSignal.NONE
     commit_count: int = Field(ge=0, default=0)
     conflicts: List[str] = Field(default_factory=list)
+    repo: Optional[str] = None
 
 class RepoMetadata(BaseModel):
     is_fork: bool = False
@@ -161,6 +162,9 @@ class PassportPayload(BaseModel):
     generated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     github_id: Optional[int] = None
     github_login: Optional[str] = None
+    # "oauth_verified": the GitHub account was authenticated via OAuth. "unverified": a public profile/repo URL
+    # was supplied without proving ownership - Verified is then impossible (capped at Supported).
+    ownership: Literal["oauth_verified", "unverified"] = "unverified"
 
 # --- Quiz Models ---
 class QuizQuestion(BaseModel):

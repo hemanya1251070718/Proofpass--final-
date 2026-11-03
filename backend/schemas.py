@@ -114,6 +114,9 @@ class AnalyzeResponse(BaseModel):
     is_demo: bool = False
     passport: PassportPayload
     created_at: str
+    # Unsealed, derived from the stored verification record, for the step-by-step UI.
+    claims: List[Dict[str, Any]] = Field(default_factory=list)
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class PassportDetailResponse(BaseModel):
@@ -203,6 +206,8 @@ class HealthResponse(BaseModel):
     database: str
     version: str = "1.0.0"
     timestamp: str
+    persistent_storage: Optional[bool] = None
+    storage_note: Optional[str] = None
 
 
 class DeletePassportResponse(BaseModel):

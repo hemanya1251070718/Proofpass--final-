@@ -192,7 +192,7 @@ export default function RecruiterRoleDetail() {
       const roleTitleClean = (r.title || '').toLowerCase().trim()
 
       for (const p of browserPassports) {
-        if (p.revoked) continue
+        if (p.revoked || p.legacy) continue  // legacy client-sealed records are not ranked
 
         const pId = p.id || p.passport_id
         if (!pId || existingPassportIds.has(pId) || existingPassportIds.has(`live_${pId}`)) {
@@ -233,6 +233,7 @@ export default function RecruiterRoleDetail() {
             hasPassport: true,
             passport: p,
             isLiveDemo: true,
+            isDemo: Boolean(p.isDemo),
             skills: pSkills,
           })
           existingPassportIds.add(pId)
@@ -461,6 +462,15 @@ export default function RecruiterRoleDetail() {
           <div className="login-notice mb-20" role="status">
             <span className="notice-dot" aria-hidden="true" />
             <span>{notice}</span>
+          </div>
+        )}
+
+        {rankedCandidates.some((c) => c.isDemo) && (
+          <div className="login-notice" role="note">
+            <span className="notice-dot" aria-hidden="true" />
+            <span>
+              Rows tagged <strong>DEMO DATA</strong> are browser-seeded sample candidates for demonstration. They are not real applicants and their passports were not issued by the verification engine.
+            </span>
           </div>
         )}
 

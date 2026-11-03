@@ -109,3 +109,65 @@ export async function getRecommendedResources(candidateSkills = [], targetRole =
 
   return sorted
 }
+
+
+// ---------------------------------------------------------------------------
+// Backend-powered recommendations (Parts 1 & 3). All GitHub access happens on the
+// backend; the browser only talks to /api/v1/recommendations/*.
+// ---------------------------------------------------------------------------
+
+const REC_API = '/api/v1/recommendations'
+
+async function postJson(path, body, timeoutMs = 25000) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${REC_API}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    })
+    if (!res.ok) {
+      let detail = ''
+      try {
+        const j = await res.json()
+        detail = typeof j.detail === 'string' ? j.detail : ''
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail || `Recommendation service returned ${res.status}`)
+    }
+    return await res.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Passport skills ([{ skill, state: V|S|C|X }]) -> request payload skills. */
+function toPayloadSkills(candidateSkills = []) {
+  return candidateSkills
+    .filter((s) => s && s.skill && ['V', 'S', 'C', 'X'].includes(s.state))
+    .map((s) => ({ skill: String(s.skill), state: s.state }))
+}
+
+/**
+ * All catalogue roles ranked by deterministic evidence-weighted match.
+ * Backend: POST /api/v1/recommendations/roles/match
+ */
+export async function fetchRoleMatches(candidateSkills = []) {
+  const data = await postJson('/roles/match', { skills: toPayloadSkills(candidateSkills) })
+  return data.roles
+}
+
+/**
+ * Prioritised courses + GitHub practice covering passport gaps AND the target role's gaps.
+ * Backend: POST /api/v1/recommendations/plan
+ */
+export async function fetchRecommendationPlan(candidateSkills = [], targetRoleId = null) {
+  return postJson('/plan', {
+    skills: toPayloadSkills(candidateSkills),
+    target_role_id: targetRoleId || null,
+    max_skills: 8,
+  })
+}

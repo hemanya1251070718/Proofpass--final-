@@ -71,7 +71,7 @@ export default function RecruiterDashboard() {
         const roleTitleClean = (r.title || '').toLowerCase().trim()
 
         for (const p of browserPassports) {
-          if (p.revoked) continue
+          if (p.revoked || p.legacy) continue  // legacy client-sealed records are not ranked
           const pId = p.id || p.passport_id
           if (!pId || existingIds.has(pId) || existingIds.has(`live_${pId}`)) continue
 

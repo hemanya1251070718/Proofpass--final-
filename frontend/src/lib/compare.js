@@ -224,6 +224,7 @@ export function buildComparison(role, applicants = []) {
       strengths,
       concerns,
       isLiveDemo: Boolean(applicant.isLiveDemo),
+      isDemo: Boolean(applicant.isDemo),
       isRecruiterGenerated: Boolean(applicant.isRecruiterGenerated || passport.isRecruiterGenerated),
     }
   })

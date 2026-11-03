@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
-import { getPassport, checkPassportTamper } from '../api/passports.js'
+import { getPassport, getSharedPassport, checkPassportTamper } from '../api/passports.js'
 import { L, WEIGHTS } from '../data.js'
 import { RM } from '../lib.js'
 import { EvidenceCard } from './EvidenceCard.jsx'
@@ -78,7 +78,13 @@ export default function PassportView() {
     let mounted = true
     async function load() {
       try {
-        const found = await getPassport(passportId)
+        // Owner / recruiter: full authenticated view. Everyone else: the public share view (honours revocation).
+        let found
+        try {
+          found = await getPassport(passportId)
+        } catch {
+          found = { ...(await getSharedPassport(passportId)), viaShared: true }
+        }
         if (mounted) {
           setPassport(found)
           setLoading(false)
@@ -100,7 +106,7 @@ export default function PassportView() {
     if (!passport) return
     setIsCheckingTamper(true)
     try {
-      const res = await checkPassportTamper(passport.id)
+      const res = await checkPassportTamper(passport.id, { shared: Boolean(passport.viaShared) })
       setTamperResult(res)
     } catch (err) {
       setTamperResult({ valid: false, message: `Check failed: ${err.message}` })

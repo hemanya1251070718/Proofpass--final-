@@ -183,3 +183,48 @@ ProofPass provides an evidence-first technical credibility passport. The backend
   "message": "Candidate passport and verification data permanently deleted."
 }
 ```
+
+---
+
+## Recommendations & Role Matching (Parts 1 and 3)
+
+Base: `/api/v1/recommendations`. Skills are posted by the client (`[{skill, state}]`, state = `V|S|C|X` or full name); the backend is stateless about passports. Part 3 evidence weights are **Verified 1.00 / Supported 0.70 / Claimed 0.35 / Contradicted 0.00** (the verification engine keeps 1.0/0.6/0.2/0.0).
+
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/status` | catalogue size, role count, GitHub auth/rate snapshot |
+| GET | `/roles/catalogue` | the 20 technical roles with tiered skills |
+| POST | `/roles/match` | `{skills, limit?, family?}` -> ranked roles with score, matched / weak / missing skills, improvement priorities, explanation |
+| POST | `/roles/{role_id}/match` | same for one role (404 if unknown) |
+| GET | `/courses?skill=&state=&limit=` | ranked courses from the imported SQLite Coursera catalogue |
+| GET | `/practice?skill=&limit=` | GitHub issues; `source` = `live` / `cache` / `stale_cache` / `fallback` / `unmapped` |
+| POST | `/plan` | `{skills, target_role_id?}` -> prioritised skills (passport gaps + role gaps) each with courses and practice |
+
+Setup: `python -m backend.recommendations.course_import` (idempotent; CSV at `backend/data/CourseraDataset-Clean.csv`, not committed). Optional env: `GITHUB_TOKEN` (backend only), `GITHUB_CACHE_TTL_SECONDS`, `SEMANTIC_SKILL_MATCHING` (off by default; semantically-resolved skills are capped at Claimed).
+
+
+---
+
+## Accounts and Authorization (v2)
+
+| Method | Route | Access | Notes |
+|---|---|---|---|
+| POST | `/account/register` | public | `{role: applicant\|recruiter, name, email, password(8-128), profile?}` -> 201 + session cookie. 409 duplicate email. |
+| POST | `/account/login` | public | 401 identical message for unknown email / wrong password; 429 after 5 failures. |
+| POST | `/account/logout`, `/account/logout-all` | session | Deletes the server-side session(s). |
+| GET | `/account/me` | session | Session restore. |
+| PATCH | `/account/profile` | session | Merges profile fields; `role`/`email`/`id` are ignored. |
+| POST | `/verify` | applicant + GitHub OAuth session | Ownership verified. 503 if GitHub is unavailable. |
+| POST | `/analyze`, `/analyze/upload` | applicant | Public URL fallback; `ownership: "unverified"`, max Supported. |
+| GET | `/passports` | session | Applicant: own. Recruiter: all (read-only). |
+| GET | `/passports/{id}` | owner or recruiter | 404 for other applicants. |
+| GET/POST | `/passports/{id}/quiz`, `/quiz/answers` | owner applicant | Backend grades and re-seals. |
+| GET | `/passports/{id}/verify` | owner or recruiter | Canonical integrity check. |
+| PATCH | `/passports/{id}/sharing` | owner applicant | `{revoked: bool}`; not part of the sealed payload. |
+| DELETE | `/passports/{id}` | owner applicant | 403 for recruiters, 404 for others. |
+| POST | `/passports` | - | **410**: passports are issued only by the verification pipeline. |
+| POST | `/passports/verify-commit` | - | **410**: disabled (it trusted client-supplied commits). |
+| GET | `/shared/passports/{id}` | public | Read-only share view without quiz/owner data; 410 when revoked. |
+| POST | `/integrity/check` | public | `{payload, hash}` -> recomputed canonical SHA-256. |
+| * | `/batch*` | recruiter | 501 unless `PROOFPASS_OFFLINE_FIXTURES=1` (no live verification backend). |
+| * | `/extract-resume`, `/parse-role`, `/recommendations/*` | session | `/recommendations/plan` and `/practice` are rate limited per user. |

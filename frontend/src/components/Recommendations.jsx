@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { listPassports } from '../api/passports.js'
 import { getRecommendedResources } from '../api/recommendations.js'
+import RecommendationPlan from './RecommendationPlan.jsx'
 
 export default function Recommendations() {
   const { user } = useAuth()
@@ -96,6 +97,19 @@ export default function Recommendations() {
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* Backend-driven role matching + course/practice plan (Parts 1 & 3) */}
+        <RecommendationPlan
+          candidateSkills={candidateSkills}
+          targetRoleHint={user?.profile?.targetRole || passport?.targetRole || ''}
+        />
+
+        <div style={{ marginBottom: '12px' }}>
+          <span className="k m">CURATED PLATFORM RESOURCES</span>
+          <p style={{ fontSize: '0.84rem', color: 'var(--muted)', margin: '4px 0 0' }}>
+            Hand-picked tracks and iMocha assessments (static list, also used if live recommendations are unavailable).
+          </p>
         </div>
 
         {/* Filter Bar */}

@@ -1,226 +1,150 @@
 /**
- * Passports API Module
- * Manages saving, retrieving, listing, revoking, and integrity-verifying skill passports.
+ * Passports API Module.
+ * Passports are issued and sealed by the backend verification pipeline and stored in the database, owned by the
+ * applicant whose session created them. The browser never creates, edits or re-seals a passport; it only reads
+ * them (applicants: their own, recruiters: all, read-only) and toggles the owner-only share switch.
  */
 
-import { verifyPassportIntegrity } from '../engine/step8_issue_passport.js'
 import { attachEvidenceDetailsToPassport } from '../lib/evidenceDetails.js'
 
-const STORAGE_PASSPORTS_KEY = 'pp_prototype_passports'
+const API = '/api/v1'
 
-function loadStoredPassports() {
-  try {
-    const raw = localStorage.getItem(STORAGE_PASSPORTS_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
+const STATE_CODE = { Verified: 'V', Supported: 'S', Claimed: 'C', Contradicted: 'X' }
+const STATE_TEXT = {
+  V: 'Verified: authored code was found and the micro-check was passed.',
+  S: 'Supported: evidence exists but is not fully proven yet (one micro-check away from Verified).',
+  C: 'Claimed: mentioned on the resume with no matching evidence found. Not penalised.',
+  X: 'Contradicted: the evidence conflicts with the claim.',
 }
 
-function saveStoredPassports(passports) {
+async function apiGet(path) {
+  let res
   try {
-    localStorage.setItem(STORAGE_PASSPORTS_KEY, JSON.stringify(passports))
+    res = await fetch(`${API}${path}`, { credentials: 'same-origin' })
   } catch {
-    // Storage restricted
+    throw new Error('Could not reach the ProofPass server.')
   }
+  if (!res.ok) {
+    let detail = ''
+    try {
+      detail = (await res.json()).detail
+    } catch {
+      detail = ''
+    }
+    const err = new Error(typeof detail === 'string' && detail ? detail : `Request failed (${res.status}).`)
+    err.status = res.status
+    throw err
+  }
+  return res.json()
+}
+
+/** Short, factual evidence line built only from what the backend recorded. */
+function evidenceLine(skill) {
+  const chain = Array.isArray(skill.evidence_chain) ? skill.evidence_chain : []
+  const repo = chain.find((c) => c.source === 'repo' && c.file)
+  if (repo) {
+    const pct = typeof repo.author_lines_pct === 'number' ? `, ${Math.round(repo.author_lines_pct * 100)}% authored by the candidate` : ''
+    return `${repo.label ? `${repo.label}: ` : ''}${repo.file}${pct}`
+  }
+  const other = chain.find((c) => c.detail || c.label)
+  if (other) return other.detail || other.label
+  return skill.evidence || (skill.claim_state === 'Claimed' ? 'On resume; no matching evidence found' : '')
 }
 
 /**
- * Normalizes passport payload from either backend API or client storage.
+ * Normalises a backend passport (list or detail response) for the UI. States come from the backend only.
  */
-function normalizePassport(p) {
+export function normalizePassport(p) {
   if (!p) return null
   const id = p.id || p.passport_id
   if (!id) return null
 
-  let skills = p.skills || []
-  if (Array.isArray(skills)) {
-    skills = skills.map((s) => ({
+  const skills = (Array.isArray(p.skills) ? p.skills : []).map((s) => {
+    const state = s.state || STATE_CODE[s.claim_state] || 'C'
+    const chain = Array.isArray(s.evidence_chain) ? s.evidence_chain : []
+    const repo = chain.find((c) => c.source === 'repo' && c.file)
+    return {
       skill: s.skill || s.name || '',
-      state: s.state || (s.claim_state === 'Verified' ? 'V' : s.claim_state === 'Supported' ? 'S' : s.claim_state === 'Contradicted' ? 'X' : 'C'),
+      state,
       level: s.level || 2,
-      evidence: s.evidence || (s.evidence_chain?.[0]?.detail) || 'Verified evidence',
-      rationale: s.rationale || s.why || '',
-      evidenceDetails: Array.isArray(s.evidenceDetails) && s.evidenceDetails.length > 0 ? s.evidenceDetails : [],
-    }))
-  }
+      evidence: s.evidence || evidenceLine(s),
+      rationale: s.rationale || STATE_TEXT[state],
+      lineShare: repo && typeof repo.author_lines_pct === 'number' ? Math.round(repo.author_lines_pct * 100) : undefined,
+      filePath: repo?.file,
+      repo: repo?.label,
+      url: repo?.url,
+      credibility: s.credibility,
+      quizStatus: s.quiz_status,
+      evidenceChain: chain,
+      evidenceDetails: [],
+    }
+  })
 
   const base = {
     ...p,
     id,
     passport_id: id,
-    candidate: p.candidate || p.candidate_name || 'Applicant',
+    candidate: p.candidate || 'Applicant',
     targetRole: p.targetRole || p.target_role || 'Software Engineer',
     issuedAt: p.issuedAt || p.created_at || new Date().toISOString(),
-    hash: p.hash || p.sha256_hash || `hash_${id}`,
+    hash: p.hash || p.sha256_hash,
     skills,
     revoked: Boolean(p.revoked),
+    ownership: p.ownership || p.passport?.ownership || 'unverified',
+    ownershipVerified: Boolean(p.ownershipVerified),
+    isDemo: Boolean(p.isDemo || p.is_demo),
   }
-
-  return attachEvidenceDetailsToPassport(base, { passport: base })
+  return attachEvidenceDetailsToPassport(base, { evidence: p.evidence || [] })
 }
 
-/**
- * List all passports associated with a user or globally across all browsers.
- * Fetches live from the backend server (/api/v1/passports) and merges with local storage.
- *
- * @param {string} [userId]
- * @returns {Promise<Array>}
- */
-export async function listPassports(userId) {
-  let serverPassports = []
-  try {
-    const res = await fetch('/api/v1/passports')
-    if (res.ok) {
-      serverPassports = await res.json()
-    }
-  } catch {
-    // Network / offline fallback
-  }
-
-  const local = loadStoredPassports()
-  const combinedMap = new Map()
-
-  if (Array.isArray(serverPassports)) {
-    serverPassports.forEach((p) => {
-      const norm = normalizePassport(p)
-      if (norm) combinedMap.set(norm.id, norm)
-    })
-  }
-
-  if (Array.isArray(local)) {
-    local.forEach((p) => {
-      const norm = normalizePassport(p)
-      if (norm && !combinedMap.has(norm.id)) {
-        combinedMap.set(norm.id, norm)
-      }
-    })
-  }
-
-  const all = Array.from(combinedMap.values())
-  if (userId) {
-    return all.filter((p) => p.userId === userId)
-  }
-  return all
+/** Passports visible to the signed-in user (applicant: own; recruiter: all). */
+export async function listPassports() {
+  const data = await apiGet('/passports')
+  return (Array.isArray(data) ? data : []).map(normalizePassport).filter(Boolean)
 }
 
-/**
- * Retrieve a single passport by ID.
- * Checks local storage and queries /api/v1/passports/:id.
- *
- * @param {string} passportId
- * @returns {Promise<Object>}
- */
+/** One passport visible to the signed-in user. */
 export async function getPassport(passportId) {
-  const local = loadStoredPassports()
-  const foundLocal = local.find((p) => p.id === passportId || p.passport_id === passportId)
-  if (foundLocal) return normalizePassport(foundLocal)
-
-  try {
-    const res = await fetch(`/api/v1/passports/${passportId}`)
-    if (res.ok) {
-      const data = await res.json()
-      if (data.passport) {
-        return normalizePassport({
-          ...data.passport,
-          id: data.passport_id || data.passport.id || passportId,
-          passport_id: data.passport_id || passportId,
-          targetRole: data.target_role || data.passport.target_role,
-          sha256_hash: data.sha256_hash || data.passport.sha256_hash,
-          created_at: data.created_at || data.passport.created_at,
-        })
-      }
-      return normalizePassport(data)
-    }
-  } catch {
-    // Network error
-  }
-
-  throw new Error(`Passport with ID "${passportId}" not found.`)
+  const data = await apiGet(`/passports/${encodeURIComponent(passportId)}`)
+  return normalizePassport({ ...data.passport, ...data })
 }
 
-/**
- * Save an issued skill passport into local storage AND sync to the backend API.
- * Ensures passports generated in one browser are immediately visible to recruiters in another browser.
- *
- * @param {Object} passport - Full passport payload
- * @param {string} [userId]
- * @returns {Promise<Object>}
- */
-export async function savePassport(passport, userId) {
-  const local = loadStoredPassports()
-  const pid = passport.id || passport.passport_id || `PP-${Date.now()}`
-  const record = normalizePassport({
-    ...passport,
-    id: pid,
-    userId: userId || passport.userId || 'usr_anonymous',
-    revoked: passport.revoked || false,
-    updatedAt: new Date().toISOString(),
-  })
-
-  // 1. Update local storage
-  const existingIdx = local.findIndex((p) => p.id === pid)
-  if (existingIdx >= 0) {
-    local[existingIdx] = record
-  } else {
-    local.unshift(record)
-  }
-  saveStoredPassports(local)
-
-  // 2. Broadcast / sync to shared backend database so other browser profiles see it
-  try {
-    await fetch('/api/v1/passports', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record),
-    })
-  } catch (err) {
-    console.warn('Failed to sync passport to backend server:', err)
-  }
-
-  return record
+/** Public, read-only share view (no login). Throws with status 410 when the owner revoked the link. */
+export async function getSharedPassport(passportId) {
+  const data = await apiGet(`/shared/passports/${encodeURIComponent(passportId)}`)
+  return { ...normalizePassport(data), integrity: data.integrity }
 }
 
-/**
- * Toggle or set share revocation for a passport.
- * Future backend endpoint: PATCH /api/v1/passports/:id/revoke
- *
- * @param {string} passportId
- * @param {boolean} revoked
- * @returns {Promise<Object>}
- */
+/** Owner-only: enable or revoke the public share link. */
 export async function setPassportRevoked(passportId, revoked = true) {
-  await new Promise((res) => setTimeout(res, 50))
-  const all = loadStoredPassports()
-  const idx = all.findIndex((p) => p.id === passportId)
-  if (idx === -1) {
-    throw new Error(`Passport with ID "${passportId}" not found.`)
-  }
-
-  all[idx] = {
-    ...all[idx],
-    revoked,
-    revokedAt: revoked ? new Date().toISOString() : null,
-  }
-
-  saveStoredPassports(all)
-  return all[idx]
+  const res = await fetch(`${API}/passports/${encodeURIComponent(passportId)}/sharing`, {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ revoked }),
+  })
+  if (!res.ok) throw new Error('Could not update sharing for this passport.')
+  return res.json()
 }
 
-/**
- * Check cryptographic integrity of a passport against its SHA-256 seal.
- * Future backend endpoint: POST /api/v1/passports/:id/verify
- *
- * @param {string} passportId
- * @returns {Promise<{ valid: boolean, storedHash: string, currentHash: string, message: string }>}
- */
-export async function checkPassportTamper(passportId) {
-  const passport = await getPassport(passportId)
-  const result = await verifyPassportIntegrity(passport.skills, passport.hash)
-  return {
-    valid: result.valid,
-    storedHash: passport.hash,
-    currentHash: result.currentHash,
-    message: result.message,
+/** Server-side integrity check of the stored passport against its canonical SHA-256 seal. */
+export async function checkPassportTamper(passportId, { shared = false } = {}) {
+  if (shared) {
+    const data = await apiGet(`/shared/passports/${encodeURIComponent(passportId)}`)
+    const i = data.integrity || {}
+    return { valid: i.valid === true, storedHash: i.stored_hash || data.hash, currentHash: i.computed_hash, message: i.message || 'Integrity not available for this record.' }
   }
+  const r = await apiGet(`/passports/${encodeURIComponent(passportId)}/verify`)
+  return { valid: r.valid, storedHash: r.stored_hash, currentHash: r.computed_hash, message: r.message }
+}
+
+/** Stateless canonical-hash check: does this payload still match this hash? */
+export async function checkPayloadIntegrity(payload, hash) {
+  const res = await fetch(`${API}/integrity/check`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ payload, hash }),
+  })
+  if (!res.ok) throw new Error('Integrity check failed to run.')
+  return res.json()
 }

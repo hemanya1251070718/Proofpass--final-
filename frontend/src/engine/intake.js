@@ -9,10 +9,8 @@ export function validateIntake(form) {
   }
 
   const hasGithub = Boolean(form.githubUser || (form.githubUrl && form.githubUrl.trim().length > 2))
-  const hasZip = Boolean(form.zipFile && form.zipFile.name)
-
-  if (!hasGithub && !hasZip) {
-    errors.evidence = 'An evidence source is required. Connect your GitHub account or upload a project ZIP archive.'
+  if (!hasGithub) {
+    errors.evidence = 'An evidence source is required. Connect your GitHub account or enter a valid public GitHub URL.'
   }
 
   if (!form.targetRole || form.targetRole.trim().length < 3) {

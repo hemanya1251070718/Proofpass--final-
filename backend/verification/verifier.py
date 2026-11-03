@@ -131,7 +131,7 @@ def verify(
         return _run_offline_verification(claims, owner, repo_name, candidate)
 
     # 3. Initialize GitHub client
-    client = github_client or GitHubClient()
+    client = github_client or GitHubClient(prefer_raw_content=True)
 
     # 4. Fetch repo metadata
     try:
@@ -153,9 +153,9 @@ def verify(
             ],
         )
     except (RateLimitError, GitHubAPIError) as exc:
+        # Never substitute synthetic fixture evidence for a live failure: report it to the caller.
         logger.error(f"GitHub API error during metadata fetch: {exc}")
-        # Fallback to offline verification to prevent pipeline failure
-        return _run_offline_verification(claims, owner, repo_name, candidate)
+        raise
 
     # 5. Fetch recursive file tree
     try:
@@ -187,8 +187,10 @@ def verify(
 
     # Total commits approximation
     total_commits = candidate_commits
-    if repo_metadata.commit_count > 0:
-        total_commits = repo_metadata.commit_count
+    # RepoMetadata carries no commit total from the live API; fall back to the candidate's own commit count.
+    repo_total = getattr(repo_metadata, "commit_count", 0) or 0
+    if repo_total > 0:
+        total_commits = repo_total
 
     # 7. Locate evidence for each claim
     evidence_list: List[Evidence] = []
@@ -241,9 +243,90 @@ def verify(
     # 10. Compute provenance trust level
     prov = compute_provenance(repo_metadata, evidence_list, is_github_repo=True)
     evidenced = [ev for ev in evidence_list if ev.file_exists]
+    for ev in evidenced:
+        ev.repo = f"{owner}/{repo_name}"
 
     return VerificationResult(
         provenance=prov,
         repo=repo_metadata,
         evidence=evidenced,
     )
+
+
+# ---------------------------------------------------------------------------
+# Profile-level verification (OAuth login or public profile URL)
+# ---------------------------------------------------------------------------
+import re as _re
+
+_PROFILE_RE = _re.compile(r"^https?://(?:www\.)?github\.com/([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/?$")
+_DEPTH_RANK = {UsageDepth.NONE: 0, UsageDepth.DETECTED: 1, UsageDepth.MODERATE: 2, UsageDepth.SUBSTANTIAL: 3}
+_AUTH_RANK = {AuthorshipSignal.NONE: 0, AuthorshipSignal.PARTIAL: 1, AuthorshipSignal.STRONG: 2}
+_PROV_RANK = {TrustCeiling.UNVERIFIED: 0, TrustCeiling.CANDIDATE_SUPPLIED: 1, TrustCeiling.THIRD_PARTY_ATTESTED: 2, TrustCeiling.PLATFORM_VERIFIED: 3}
+
+
+def parse_github_profile(url: str) -> Optional[str]:
+    m = _PROFILE_RE.match((url or "").strip())
+    return m.group(1) if m else None
+
+
+def _evidence_score(ev: Evidence) -> tuple:
+    return (
+        0 if ev.conflicts else 1,
+        _AUTH_RANK[ev.authorship_signal], _DEPTH_RANK[ev.usage_depth], ev.authorship_pct, ev.commit_count,
+    )
+
+
+def merge_verification_results(claims: List[Claim], results: List[VerificationResult]) -> VerificationResult:
+    """Per claim keep the best evidence across repositories. Provenance is the *lowest* ceiling among
+    the repositories that supplied kept evidence, so one strong repo cannot lift another's evidence."""
+    best: Dict[str, Evidence] = {}
+    prov_of: Dict[str, TrustCeiling] = {}
+    repo_meta: Optional[RepoMetadata] = None
+    for res in results:
+        for ev in res.evidence:
+            if not ev.file_exists:
+                continue
+            if ev.claim_id not in best or _evidence_score(ev) > _evidence_score(best[ev.claim_id]):
+                best[ev.claim_id] = ev
+                prov_of[ev.claim_id] = res.provenance
+                repo_meta = repo_meta or res.repo
+    if not best:
+        return VerificationResult(provenance=TrustCeiling.UNVERIFIED, repo=RepoMetadata(), evidence=[])
+    provenance = min(prov_of.values(), key=lambda p: _PROV_RANK[p])
+    return VerificationResult(provenance=provenance, repo=repo_meta or RepoMetadata(), evidence=list(best.values()))
+
+
+def verify_github_source(
+    claims: List[Claim],
+    github_url: str,
+    allow_network: bool = True,
+    github_client: Optional[GitHubClient] = None,
+    max_repos: int = 5,
+) -> VerificationResult:
+    """Verify claims against a repository URL, or against a user's own public repositories when a
+    profile URL is given. A profile never proves skills by itself: only code found in its repos counts.
+
+    Raises GitHubAPIError / RateLimitError when GitHub cannot be reached (no synthetic fallback).
+    """
+    login = parse_github_profile(github_url)
+    if login is None:
+        return verify(claims=claims, github_url=github_url, allow_network=allow_network, github_client=github_client)
+    if not claims:
+        return VerificationResult(provenance=TrustCeiling.UNVERIFIED, repo=RepoMetadata(), evidence=[])
+    if not allow_network:  # explicit offline fixture mode (tests / local demos only)
+        return _run_offline_verification(claims, login, "portfolio", login)
+
+    client = github_client or GitHubClient(prefer_raw_content=True)
+    repos = client.list_user_repos(login)
+    usable = [r for r in repos if not r.get("fork") and not r.get("archived") and (r.get("size") or 0) > 0 and r.get("name")]
+    results: List[VerificationResult] = []
+    errors: List[Exception] = []
+    for r in usable[:max_repos]:
+        try:
+            results.append(verify(claims=claims, github_url=f"https://github.com/{login}/{r['name']}",
+                                  candidate_identity=login, github_client=client, allow_network=True))
+        except (RateLimitError, GitHubAPIError) as exc:
+            errors.append(exc)
+    if not results and errors:
+        raise errors[0]
+    return merge_verification_results(claims, results)

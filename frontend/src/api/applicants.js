@@ -39,9 +39,12 @@ function saveStoredApplicants(applicants) {
  * @param {string} roleId
  * @returns {Promise<{ withPassport: Array, noPassport: Array }>}
  */
+/** Browser-seeded sample candidates (ids "cand-<role>-<n>") are demonstration data, never real applicants. */
+export const isSeededDemoApplicant = (a) => /^cand-/.test(String(a?.id || ''))
+
 export async function listApplicantsForRole(roleId) {
   await new Promise((res) => setTimeout(res, 60))
-  const all = loadStoredApplicants()
+  const all = loadStoredApplicants().map((a) => ({ ...a, isDemo: a.isDemo ?? isSeededDemoApplicant(a) }))
   const forRole = all.filter((a) => a.roleId === roleId)
 
   return {

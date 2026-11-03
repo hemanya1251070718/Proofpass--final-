@@ -87,6 +87,12 @@ export default function CandidateRow({
                 {displayedName}
               </button>
 
+              {candidate.isDemo && (
+                <span className="lb-tag ml-6" title="Browser-seeded sample candidate. Not a real applicant and not backed by a verified passport.">
+                  DEMO DATA
+                </span>
+              )}
+
               {isNewlyAdded && (
                 <span className="lb-tag lb-tag-new">Newly added</span>
               )}

@@ -19,13 +19,15 @@ WORKDIR /app
 # Install system dependencies needed for native Python packages and health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python requirements
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application source
+# Copy backend application source. backend/data holds ONLY the optional course dataset (see .dockerignore);
+# when it is not in the build context (it is not committed), set COURSE_CSV_URL and it is fetched at start-up.
 COPY backend/ ./backend/
 COPY .env.example ./
 
@@ -40,4 +42,5 @@ ENV PYTHONUNBUFFERED=1 \
 EXPOSE 10000
 
 # Start Uvicorn ASGI server bound to 0.0.0.0 on Render's dynamic $PORT
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# Start-up: make the course catalogue available (never fails the container), then serve.
+CMD ["sh", "-c", "python -m backend.recommendations.course_import --startup; exec uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]

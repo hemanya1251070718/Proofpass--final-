@@ -102,6 +102,7 @@ export function rankApplicants(role, applicants = []) {
       counts,
       passport: applicant.passport,
       isLiveDemo: Boolean(applicant.isLiveDemo),
+      isDemo: Boolean(applicant.isDemo),
       isRecruiterGenerated: Boolean(applicant.isRecruiterGenerated || applicant.passport?.isRecruiterGenerated),
     }
   })

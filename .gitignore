@@ -1,3 +1,4 @@
+
 node_modules
 dist
 .vite
@@ -24,6 +25,9 @@ passport_payload.json
 
 # Local ProofPass database
 proofpass.db
+
+# Third-party Coursera dataset (licence unverified) - keep out of Git
+backend/data/*.csv
 
 # Media & recordings
 *.mp4

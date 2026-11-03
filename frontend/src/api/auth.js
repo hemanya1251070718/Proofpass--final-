@@ -1,181 +1,73 @@
 /**
- * Authentication API module (Prototype In-Browser Store)
- * Stores session and account profiles in localStorage without persisting passwords.
+ * Authentication API module.
+ * Accounts and sessions live on the backend (/api/v1/account/*): Argon2id passwords, server-side sessions in an
+ * HttpOnly cookie. Nothing credential-like is stored in localStorage; the browser only holds the opaque cookie.
  */
 
-const STORAGE_USERS_KEY = 'pp_prototype_users'
-const STORAGE_SESSION_KEY = 'pp_prototype_session'
+const ACCOUNT_API = '/api/v1/account'
 
-function getStoredUsers() {
+async function accountRequest(path, { method = 'GET', body } = {}) {
+  let res
   try {
-    const raw = localStorage.getItem(STORAGE_USERS_KEY)
-    return raw ? JSON.parse(raw) : []
+    res = await fetch(`${ACCOUNT_API}${path}`, {
+      method,
+      credentials: 'same-origin',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
   } catch {
-    return []
+    throw new Error('Could not reach the ProofPass server. Check that the backend is running.')
   }
+  let data = null
+  try {
+    data = await res.json()
+  } catch {
+    data = null
+  }
+  if (!res.ok) {
+    const d = data?.detail
+    const msg = Array.isArray(d) ? d.map((x) => x.msg).join(' ') : d
+    const err = new Error(msg || `Request failed (${res.status}).`)
+    err.status = res.status
+    throw err
+  }
+  return data
 }
 
-function saveStoredUsers(users) {
-  try {
-    localStorage.setItem(STORAGE_USERS_KEY, JSON.stringify(users))
-  } catch {
-    // LocalStorage might be full or restricted
-  }
-}
-
-/**
- * Register a new applicant or recruiter account.
- * Future backend endpoint: POST /api/v1/auth/signup
- *
- * @param {Object} payload - { role, name, email, password, profile }
- * @returns {Promise<Object>} user session object
- */
+/** Register an applicant or recruiter account (the server validates and fixes the role). */
 export async function signupRequest({ role, name, email, password, profile = {} }) {
-  // Simulate network latency
-  await new Promise((res) => setTimeout(res, 80))
-
-  const cleanEmail = (email || '').trim().toLowerCase()
-  if (!cleanEmail) {
-    throw new Error('Email address is required.')
-  }
-  if (!password || password.length < 6) {
-    throw new Error('Password must be at least 6 characters.')
-  }
-  if (!role || (role !== 'applicant' && role !== 'recruiter')) {
-    throw new Error('A valid account role (applicant or recruiter) is required.')
-  }
-
-  const users = getStoredUsers()
-  let user = users.find((u) => u.email === cleanEmail)
-
-  if (user) {
-    throw new Error('An account with this email address already exists in this browser.')
-  }
-
-  // Create new user without storing plaintext password
-  user = {
-    id: `usr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: name.trim(),
-    email: cleanEmail,
-    role,
-    profile: profile || {},
-    createdAt: new Date().toISOString(),
-  }
-
-  users.push(user)
-  saveStoredUsers(users)
-
-  // Persist session
-  try {
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(user))
-  } catch {
-    // Storage restricted
-  }
-
-  return user
+  const data = await accountRequest('/register', { method: 'POST', body: { role, name, email, password, profile } })
+  return data.user
 }
 
-/**
- * Authenticate an existing account.
- * Future backend endpoint: POST /api/v1/auth/login
- *
- * Prototype rule: Any password of 6+ characters is accepted for existing accounts.
- *
- * @param {string} email
- * @param {string} password
- * @returns {Promise<Object>} user session object
- */
+/** Authenticate with email and password; the server sets the session cookie. */
 export async function loginRequest(email, password) {
-  // Simulate network latency
-  await new Promise((res) => setTimeout(res, 80))
-
-  const cleanEmail = (email || '').trim().toLowerCase()
-  if (!cleanEmail) {
-    throw new Error('Email address is required.')
-  }
-  if (!password || password.length < 6) {
-    throw new Error('Password must be at least 6 characters.')
-  }
-
-  const users = getStoredUsers()
-  let user = users.find((u) => u.email === cleanEmail)
-
-  if (!user) {
-    // If not found in custom signups, check if it's the default demo accounts
-    if (cleanEmail === 'alex.rivera@example.com' || cleanEmail.includes('alex')) {
-      user = {
-        id: 'usr_demo_applicant',
-        name: 'Alex Rivera',
-        email: cleanEmail,
-        role: 'applicant',
-        profile: {
-          targetRole: 'Senior Full Stack TypeScript Engineer',
-          experience: [{ title: 'Full Stack Engineer', organisation: 'Acme SaaS', duration: '2022 - Present', summary: 'React, Node.js, and TypeScript web development.' }],
-        },
-        createdAt: new Date().toISOString(),
-      }
-      users.push(user)
-      saveStoredUsers(users)
-    } else if (cleanEmail.includes('recruiter') || cleanEmail.includes('hiring')) {
-      user = {
-        id: 'usr_demo_recruiter',
-        name: 'Elena Rostova',
-        email: cleanEmail,
-        role: 'recruiter',
-        profile: {
-          company: 'Veloce Systems',
-          roleHiringFor: 'Senior Full Stack TypeScript Engineer',
-          description: 'Hiring senior TypeScript and React engineers with proven evidence repositories and clean code hygiene.',
-        },
-        createdAt: new Date().toISOString(),
-      }
-      users.push(user)
-      saveStoredUsers(users)
-    } else {
-      throw new Error('Account not found. Please sign up or check your email address.')
-    }
-  }
-
-  // Persist session
-  try {
-    localStorage.setItem(STORAGE_SESSION_KEY, JSON.stringify(user))
-  } catch {
-    // Storage restricted
-  }
-
-  return user
+  const data = await accountRequest('/login', { method: 'POST', body: { email, password } })
+  return data.user
 }
 
-/**
- * Terminate current user session.
- * Future backend endpoint: POST /api/v1/auth/logout
- *
- * @returns {Promise<boolean>}
- */
+/** Invalidate the server-side session. */
 export async function logoutRequest() {
-  await new Promise((res) => setTimeout(res, 40))
   try {
-    localStorage.removeItem(STORAGE_SESSION_KEY)
+    await accountRequest('/logout', { method: 'POST' })
   } catch {
-    // Storage restricted
+    // Session may already be gone; the local user state is cleared by the caller regardless.
   }
   return true
 }
 
-/**
- * Retrieve active user session from browser storage.
- * Future backend endpoint: GET /api/v1/auth/session
- *
- * @returns {Promise<Object|null>}
- */
+/** Restore the session from the cookie. Returns the user or null. */
 export async function getSession() {
   try {
-    const raw = localStorage.getItem(STORAGE_SESSION_KEY)
-    if (!raw) return null
-    return JSON.parse(raw)
+    return (await accountRequest('/session')).user
   } catch {
     return null
   }
+}
+
+/** Merge non-sensitive profile fields. The role can never be changed through this call. */
+export async function updateProfileRequest(profile) {
+  return (await accountRequest('/profile', { method: 'PATCH', body: { profile } })).user
 }
 
 /**
@@ -185,12 +77,13 @@ export async function getSession() {
  */
 export async function getGitHubSession() {
   try {
-    const res = await fetch('/api/v1/auth/me', {
+    const res = await fetch('/api/v1/auth/github/session', {
       method: 'GET',
       credentials: 'include',
     })
     if (!res.ok) return null
-    return await res.json()
+    const data = await res.json()
+    return data.connected ? data : null
   } catch {
     return null
   }

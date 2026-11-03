@@ -1,17 +1,42 @@
 """
-FastAPI Routes for ProofPass Member 2 (/api/v1).
+FastAPI routes for ProofPass (/api/v1).
+
+Authorization model
+  - Passports are issued ONLY by the backend verification pipeline (/verify, /analyze*); clients cannot
+    create, overwrite or "sync" passports, and cannot set verification states.
+  - Every passport is owned by the applicant whose session created it (owner derived from the cookie).
+  - Applicants may read/delete/share-toggle/answer quizzes on their own passports only.
+  - Recruiters have read-only access to all passports. Records without an owner (legacy or batch
+    screening) are visible to recruiters only and are never modified.
+  - A public, read-only, share-revocable view exists at /shared/passports/{id}.
 """
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.database import PassportRecord, get_db
+from backend import accounts
+from backend.api.account_routes import account_router
+from backend.api.auth import auth_router, get_current_session
+from backend.api.batch import batch_router
+from backend.api.orchestrator import (
+    VerificationUnavailable,
+    check_payload_integrity,
+    evaluate_quiz_submission,
+    run_analyze_pipeline,
+    verify_passport_integrity,
+)
+from backend.api.radar import radar_router
+from backend.api.recommendations import recommendations_router
+from backend.api.resume import resume_router
+from backend.database import PassportRecord, UserRecord, get_db, persistence_status
 from backend.schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
@@ -22,26 +47,27 @@ from backend.schemas import (
     PublicQuizQuestion,
     QuizEvaluationResponse,
     QuizSubmissionRequest,
-    canonical_json_dumps,
 )
-from backend.api.orchestrator import (
-    evaluate_quiz_submission,
-    run_analyze_pipeline,
-    verify_passport_integrity,
-    _seal_passport,
-)
-from backend.intelligence.models import PassportPayload, QuizQuestion
-from backend.api.auth import auth_router, get_current_session
+from backend.intelligence.models import PassportPayload
 from backend.verification.github_client import parse_github_url
-from backend.api.batch import batch_router
-from backend.api.resume import resume_router
-from backend.api.radar import radar_router
 
 router = APIRouter(prefix="/api/v1", tags=["ProofPass Core"])
+
+
+def _require_fixture_backed_feature() -> None:
+    """Batch ingestion scores resumes against synthetic fixture repositories (no live GitHub verification),
+    so it is unavailable unless fixtures are explicitly enabled (tests / local development)."""
+    if os.getenv("PROOFPASS_OFFLINE_FIXTURES", "").strip() != "1":
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED,
+                            "Batch ingestion is unavailable: it has no live verification backend yet.")
+
+
+router.include_router(account_router)
 router.include_router(auth_router)
-router.include_router(batch_router)
-router.include_router(resume_router)
-router.include_router(radar_router)
+router.include_router(batch_router, dependencies=[Depends(accounts.require_recruiter), Depends(_require_fixture_backed_feature)])
+router.include_router(resume_router, dependencies=[Depends(accounts.require_user)])
+router.include_router(radar_router)  # public job/transit reads; the commit-stamping endpoint is disabled
+router.include_router(recommendations_router, dependencies=[Depends(accounts.require_user)])
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -52,656 +78,363 @@ def health_check(db: Session = Depends(get_db)):
         db_status = "connected"
     except Exception as exc:
         db_status = f"unhealthy: {exc}"
-
     return HealthResponse(
         status="ok" if db_status == "connected" else "degraded",
         database=db_status,
-        version="1.0.0",
+        version="2.0.0",
         timestamp=datetime.utcnow().isoformat(),
+        persistent_storage=persistence_status()["persistent"],
+        storage_note=persistence_status()["reason"],
     )
 
 
-@router.post(
-    "/analyze",
-    response_model=AnalyzeResponse,
-    summary="Intake and Analyze Skill Passport (JSON or Multipart)",
-    description=(
-        "Analyze candidate skills from resume text or PDF, cross-verifying with GitHub repository code.\n\n"
-        "- **JSON input**: Provide `resume_text`, `github_url`, `target_role`, and `consent: true`.\n"
-        "- **Multipart input**: Upload `resume_file` (PDF) or `resume_text` along with form fields."
-    ),
-    openapi_extra={
-        "requestBody": {
-            "required": True,
-            "content": {
-                "application/json": {
-                    "schema": AnalyzeRequest.model_json_schema()
-                },
-                "multipart/form-data": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "resume_file": {
-                                "type": "string",
-                                "format": "binary",
-                                "description": "Candidate resume PDF document",
-                            },
-                            "resume_text": {
-                                "type": "string",
-                                "description": "Candidate resume plain text (if not uploading a PDF)",
-                            },
-                            "github_url": {
-                                "type": "string",
-                                "description": "Public GitHub repository URL or profile",
-                                "example": "https://github.com/alexrivera-dev/portfolio",
-                            },
-                            "target_role": {
-                                "type": "string",
-                                "description": "Target job title or role name",
-                                "example": "Full-Stack Engineer",
-                            },
-                            "job_description": {
-                                "type": "string",
-                                "description": "Optional job description text",
-                                "example": "Seeking Full-Stack Engineer with React and Python experience.",
-                            },
-                            "consent": {
-                                "type": "boolean",
-                                "description": "Explicit candidate consent (required, must be true)",
-                                "default": True,
-                            },
-                            "allow_network": {
-                                "type": "boolean",
-                                "description": "Allow real GitHub API network calls (default: true)",
-                                "default": True,
-                            },
-                        },
-                        "required": ["github_url", "target_role", "consent"],
-                    }
-                },
-            },
-        }
-    },
-)
-async def analyze_intake(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    content_type = request.headers.get("content-type", "")
+# ---------------------------------------------------------------------------
+# Verification (backend is the only authority)
+# ---------------------------------------------------------------------------
+def _offline_fixtures_enabled() -> bool:
+    """Synthetic fixture evidence exists only for automated tests / local development, never by default."""
+    return os.getenv("PROOFPASS_OFFLINE_FIXTURES", "").strip() == "1"
 
-    resume_text: Optional[str] = None
-    resume_bytes: Optional[bytes] = None
-    github_url: str = ""
-    target_role: str = ""
-    job_description: Optional[str] = None
-    consent: bool = False
-    allow_network: bool = True
 
+def _effective_allow_network(requested: bool) -> bool:
+    return True if not _offline_fixtures_enabled() else bool(requested)
+
+
+def _truthy(v: Any) -> bool:
+    return str(v).lower() in ("true", "1", "yes")
+
+
+async def _parse_intake(request: Request) -> Dict[str, Any]:
+    """Normalises JSON or multipart intake into one dict (client-supplied identity is never read)."""
+    ctype = request.headers.get("content-type", "")
+    out: Dict[str, Any] = {"resume_text": None, "resume_bytes": None, "github_url": "", "target_role": "",
+                           "job_description": None, "consent": False, "allow_network": True}
     try:
-        if "multipart/form-data" in content_type:
+        if "multipart/form-data" in ctype:
             form = await request.form()
-
-            # Check for file
-            file_field = form.get("resume_file") or form.get("resumeFile")
-            if file_field and hasattr(file_field, "read"):
-                resume_bytes = await file_field.read()
-
-            raw_text = form.get("resume_text") or form.get("resumeText")
-            if raw_text:
-                resume_text = str(raw_text)
-
-            github_url = str(form.get("github_url") or form.get("githubUrl") or "").strip()
-            target_role = str(form.get("target_role") or form.get("targetRole") or "").strip()
-            jd_raw = form.get("job_description") or form.get("jobDescription")
-            job_description = str(jd_raw) if jd_raw else None
-
-            consent_raw = (
-                form.get("consent")
-                or form.get("consentAi")
-                or form.get("consent_ai")
-                or form.get("candidate_consent")
-            )
-            consent = str(consent_raw).lower() in ("true", "1", "yes")
-
-            allow_net_raw = form.get("allow_network") or form.get("allowNetwork")
-            if allow_net_raw is not None:
-                allow_network = str(allow_net_raw).lower() in ("true", "1", "yes")
+            f = form.get("resume_file") or form.get("resumeFile")
+            if f and hasattr(f, "read"):
+                out["resume_bytes"] = await f.read()
+            raw = form.get("resume_text") or form.get("resumeText")
+            out["resume_text"] = str(raw) if raw else None
+            out["github_url"] = str(form.get("github_url") or form.get("githubUrl") or "").strip()
+            out["target_role"] = str(form.get("target_role") or form.get("targetRole") or "").strip()
+            jd = form.get("job_description") or form.get("jobDescription")
+            out["job_description"] = str(jd) if jd else None
+            out["consent"] = _truthy(form.get("consent") or form.get("consentAi") or form.get("consent_ai") or form.get("candidate_consent"))
+            if form.get("allow_network") is not None or form.get("allowNetwork") is not None:
+                out["allow_network"] = _truthy(form.get("allow_network") if form.get("allow_network") is not None else form.get("allowNetwork"))
         else:
             body = await request.json()
-            req = AnalyzeRequest.model_validate(body)
-            resume_text = req.resume_text
-            github_url = req.github_url
-            target_role = req.target_role
-            job_description = req.job_description
-            consent = req.consent
-            allow_network = req.allow_network
+            if not isinstance(body, dict):
+                raise ValueError("JSON object expected.")
+            out["resume_text"] = body.get("resume_text") or body.get("resumeText")
+            out["github_url"] = str(body.get("github_url") or body.get("githubUrl") or "").strip()
+            out["target_role"] = str(body.get("target_role") or body.get("targetRole") or "").strip()
+            out["job_description"] = body.get("job_description") or body.get("jobDescription")
+            out["consent"] = bool(body.get("consent") or body.get("consentAi") or body.get("consent_ai") or body.get("candidate_consent"))
+            out["allow_network"] = _truthy(body.get("allow_network", True)) if "allow_network" in body else _truthy(body.get("allowNetwork", True))
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid request data: {exc}",
-        )
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Invalid request data: {exc}")
+    return out
 
-    if not consent:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Candidate consent is required to process resume and evidence data.",
-        )
 
-    if not github_url:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A valid GitHub repository URL or profile is required.",
-        )
+def _validate_intake(i: Dict[str, Any], need_github_url: bool) -> None:
+    if not i["consent"]:
+        raise HTTPException(400, "Candidate consent is required to process resume and evidence data.")
+    if need_github_url and not i["github_url"]:
+        raise HTTPException(400, "A valid GitHub repository or profile URL is required.")
+    if not i["target_role"]:
+        raise HTTPException(400, "A target role is required.")
+    if not i["resume_bytes"] and (not i["resume_text"] or not str(i["resume_text"]).strip()):
+        raise HTTPException(400, "A resume is required. Please provide resume text or upload a PDF document.")
 
-    if not target_role:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A target role is required.",
-        )
 
-    if not resume_bytes and (not resume_text or not resume_text.strip()):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A resume is required. Please provide resume text or upload a PDF document.",
-        )
+def evidence_summary(record: PassportRecord) -> Dict[str, List[Dict[str, Any]]]:
+    """Claims and per-claim code evidence read back from the stored verification record (not sealed)."""
+    try:
+        claims = [{"claim_id": c.get("claim_id"), "skill": c.get("skill")} for c in json.loads(record.claims_json or "[]") if isinstance(c, dict)]
+        raw = json.loads(record.verification_json or "{}")
+        evidence = [
+            {k: e.get(k) for k in ("claim_id", "skill", "repo", "file_path", "usage_depth", "authorship_pct",
+                                   "authorship_signal", "commit_count", "conflicts")}
+            for e in (raw.get("evidence") or []) if isinstance(e, dict)
+        ]
+    except (ValueError, AttributeError):
+        claims, evidence = [], []
+    return {"claims": claims, "evidence": evidence}
 
+
+def _issue(db: Session, user: UserRecord, i: Dict[str, Any], github_url: str, ownership: str,
+           github_id: Optional[int] = None, github_login: Optional[str] = None) -> AnalyzeResponse:
+    if github_id:
+        other = db.query(UserRecord).filter(UserRecord.github_id == github_id, UserRecord.id != user.id).first()
+        if other is not None:
+            # One GitHub identity can back only one ProofPass account, so it cannot vouch for several applicants.
+            raise HTTPException(status.HTTP_409_CONFLICT, "This GitHub account is already linked to another ProofPass account.")
     try:
         passport, record = run_analyze_pipeline(
-            resume_text=resume_text,
-            resume_bytes=resume_bytes,
-            github_url=github_url,
-            target_role=target_role,
-            job_description=job_description,
-            candidate_consent=consent,
-            allow_network=allow_network,
-            db=db,
+            resume_text=i["resume_text"], resume_bytes=i["resume_bytes"], github_url=github_url,
+            target_role=i["target_role"], job_description=i["job_description"], candidate_consent=i["consent"],
+            allow_network=_effective_allow_network(i["allow_network"]), db=db,
+            owner_id=user.id, ownership=ownership, github_id=github_id, github_login=github_login,
         )
+    except VerificationUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc))
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
+        raise HTTPException(400, str(exc))
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution error: {exc}",
-        )
-
+        raise HTTPException(500, f"Pipeline execution error: {exc}")
+    if github_id and (user.github_id != github_id or user.github_login != github_login):
+        user.github_id, user.github_login = github_id, github_login
+        db.commit()
     return AnalyzeResponse(
-        passport_id=record.passport_id,
-        status=record.status,
-        role_match_score=record.role_match_score,
-        target_role=record.target_role,
-        sha256_hash=record.sha256_hash,
-        is_demo=record.is_demo,
-        passport=passport,
-        created_at=record.created_at.isoformat(),
+        passport_id=record.passport_id, status=record.status, role_match_score=record.role_match_score,
+        target_role=record.target_role, sha256_hash=record.sha256_hash, is_demo=record.is_demo,
+        passport=passport, created_at=record.created_at.isoformat(), **evidence_summary(record),
     )
 
 
 @router.post(
-    "/analyze/upload",
-    response_model=AnalyzeResponse,
-    summary="Intake and Analyze via PDF File Upload",
-    description="Upload a candidate PDF resume file along with GitHub URL and target role for verification.",
-)
-async def analyze_upload(
-    resume_file: UploadFile = File(..., description="PDF resume file to upload"),
-    github_url: str = Form(..., description="Public GitHub repository URL or profile"),
-    target_role: str = Form(..., description="Target role name (e.g. 'Full-Stack Engineer')"),
-    job_description: Optional[str] = Form(None, description="Optional job description text"),
-    consent: bool = Form(..., description="Candidate consent (must be true)"),
-    allow_network: bool = Form(True, description="Whether to allow live GitHub network calls"),
-    db: Session = Depends(get_db),
-):
-    """
-    Dedicated multipart/form-data endpoint for uploading a PDF resume document.
-    """
-    if not consent:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Candidate consent is required to process resume and evidence data.",
-        )
-
-    github_url_clean = github_url.strip()
-    if not github_url_clean:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A valid GitHub repository URL or profile is required.",
-        )
-
-    target_role_clean = target_role.strip()
-    if not target_role_clean:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A target role is required.",
-        )
-
-    try:
-        resume_bytes = await resume_file.read()
-        if not resume_bytes:
-            raise ValueError("Uploaded PDF file is empty.")
-
-        passport, record = run_analyze_pipeline(
-            resume_text=None,
-            resume_bytes=resume_bytes,
-            github_url=github_url_clean,
-            target_role=target_role_clean,
-            job_description=job_description,
-            candidate_consent=consent,
-            allow_network=allow_network,
-            db=db,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution error: {exc}",
-        )
-
-    return AnalyzeResponse(
-        passport_id=record.passport_id,
-        status=record.status,
-        role_match_score=record.role_match_score,
-        target_role=record.target_role,
-        sha256_hash=record.sha256_hash,
-        is_demo=record.is_demo,
-        passport=passport,
-        created_at=record.created_at.isoformat(),
-    )
-
-
-@router.post(
-    "/verify",
-    response_model=AnalyzeResponse,
-    summary="Verify Candidate Skills with Authenticated GitHub Session",
+    "/verify", response_model=AnalyzeResponse,
+    summary="Verify skills with an authenticated GitHub session (OAuth ownership)",
     description=(
-        "Verifies candidate skill claims against public GitHub repositories owned by "
-        "the authenticated GitHub session. Client-supplied github_url is ignored, "
-        "repos not owned by the session login are rejected, and ownership_verified is set."
+        "Applicant-only. Requires the ProofPass login AND a GitHub OAuth session. The client-supplied URL "
+        "is ignored (repos not owned by the OAuth login are rejected); evidence comes from that account's own "
+        "public repositories. Skills reach Verified only after the quiz is passed."
     ),
 )
 @router.post("/verify/upload", response_model=AnalyzeResponse, include_in_schema=False)
-async def verify_candidate(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """
-    Candidate verification endpoint.
-    Requires an active GitHub OAuth session cookie.
-    Ignores client-supplied github_url, rejects repos not owned by authenticated login,
-    sets ownership_verified=True on repo evidence, and puts github_id into passport.
-    """
+async def verify_candidate(request: Request, user: UserRecord = Depends(accounts.require_applicant),
+                           db: Session = Depends(get_db)):
     session = get_current_session(request)
     if not session:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Please connect your GitHub account to verify.",
-        )
-
-    github_login = session["github_login"]
-    github_id = session["github_id"]
-
-    content_type = request.headers.get("content-type", "")
-    resume_text: Optional[str] = None
-    resume_bytes: Optional[bytes] = None
-    client_supplied_github_url: str = ""
-    target_role: str = ""
-    job_description: Optional[str] = None
-    consent: bool = False
-    allow_network: bool = True
-
-    try:
-        if "multipart/form-data" in content_type:
-            form = await request.form()
-            file_field = form.get("resume_file") or form.get("resumeFile")
-            if file_field and hasattr(file_field, "read"):
-                resume_bytes = await file_field.read()
-            raw_text = form.get("resume_text") or form.get("resumeText")
-            if raw_text:
-                resume_text = str(raw_text)
-
-            client_supplied_github_url = str(
-                form.get("github_url") or form.get("githubUrl") or ""
-            ).strip()
-            target_role = str(form.get("target_role") or form.get("targetRole") or "").strip()
-            jd_raw = form.get("job_description") or form.get("jobDescription")
-            job_description = str(jd_raw) if jd_raw else None
-
-            consent_raw = (
-                form.get("consent")
-                or form.get("consentAi")
-                or form.get("consent_ai")
-                or form.get("candidate_consent")
-            )
-            consent = str(consent_raw).lower() in ("true", "1", "yes")
-
-            allow_net_raw = form.get("allow_network") or form.get("allowNetwork")
-            if allow_net_raw is not None:
-                allow_network = str(allow_net_raw).lower() in ("true", "1", "yes")
-        else:
-            body = await request.json()
-            resume_text = body.get("resume_text") or body.get("resumeText")
-            client_supplied_github_url = str(
-                body.get("github_url") or body.get("githubUrl") or ""
-            ).strip()
-            target_role = str(body.get("target_role") or body.get("targetRole") or "").strip()
-            job_description = body.get("job_description") or body.get("jobDescription")
-            consent = bool(body.get("consent") or body.get("consentAi"))
-            allow_network = body.get("allow_network", True)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid request data: {exc}",
-        )
-
-    if not consent:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Candidate consent is required to process resume and evidence data.",
-        )
-
-    if not target_role:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A target role is required.",
-        )
-
-    if not resume_bytes and (not resume_text or not resume_text.strip()):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A resume is required. Please provide resume text or upload a PDF document.",
-        )
-
-    # Reject repos not owned by authenticated login with a clear error
-    if client_supplied_github_url:
+        raise HTTPException(401, "Connect your GitHub account to verify with authenticated ownership.")
+    login, gh_id = session["github_login"], session["github_id"]
+    i = await _parse_intake(request)
+    _validate_intake(i, need_github_url=False)
+    if i["github_url"]:
         try:
-            owner, repo_name = parse_github_url(client_supplied_github_url)
-            if owner.lower() != github_login.lower():
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Repository '{client_supplied_github_url}' is not owned by authenticated user @{github_login}.",
-                )
+            owner, _ = parse_github_url(i["github_url"])
+            if owner.lower() != login.lower():
+                raise HTTPException(400, f"Repository '{i['github_url']}' is not owned by authenticated user @{login}.")
         except ValueError:
             pass
+    return _issue(db, user, i, f"https://github.com/{login}", "oauth_verified", gh_id, login)
 
-    # Ignore client-supplied github_url and build repo URL from session login
-    session_github_url = f"https://github.com/{github_login}"
 
-    try:
-        passport, record = run_analyze_pipeline(
-            resume_text=resume_text,
-            resume_bytes=resume_bytes,
-            github_url=session_github_url,
-            target_role=target_role,
-            job_description=job_description,
-            candidate_consent=consent,
-            allow_network=allow_network,
-            db=db,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Pipeline execution error: {exc}",
-        )
+@router.post(
+    "/analyze", response_model=AnalyzeResponse,
+    summary="Analyze from a public GitHub URL (Ownership Unverified fallback)",
+    description=(
+        "Applicant-only fallback when GitHub OAuth is unavailable. Ownership of the URL is NOT proven, so the "
+        "passport is labelled `ownership: unverified` and no skill can exceed Supported."
+    ),
+    openapi_extra={"requestBody": {"required": True, "content": {"application/json": {"schema": AnalyzeRequest.model_json_schema()}}}},
+)
+async def analyze_intake(request: Request, user: UserRecord = Depends(accounts.require_applicant),
+                         db: Session = Depends(get_db)):
+    i = await _parse_intake(request)
+    _validate_intake(i, need_github_url=True)
+    return _issue(db, user, i, i["github_url"], "unverified")
 
-    # Set ownership_verified = True for GitHub evidence derived from this session
-    for skill in passport.skills:
-        for ev in skill.evidence_chain:
-            if ev.source == "repo":
-                ev.ownership_verified = True
 
-    # Put github_id and github_login in passport so a rename does not break the link
-    passport.github_id = github_id
-    passport.github_login = github_login
+@router.post("/analyze/upload", response_model=AnalyzeResponse,
+             summary="Analyze with a PDF resume (Ownership Unverified fallback)")
+async def analyze_upload(
+    resume_file: UploadFile = File(...),
+    github_url: str = Form(...),
+    target_role: str = Form(...),
+    job_description: Optional[str] = Form(None),
+    consent: bool = Form(...),
+    allow_network: bool = Form(True),
+    user: UserRecord = Depends(accounts.require_applicant),
+    db: Session = Depends(get_db),
+):
+    data = await resume_file.read()
+    if not data:
+        raise HTTPException(400, "Uploaded PDF file is empty.")
+    i = {"resume_text": None, "resume_bytes": data, "github_url": github_url.strip(), "target_role": target_role.strip(),
+         "job_description": job_description, "consent": consent, "allow_network": allow_network}
+    _validate_intake(i, need_github_url=True)
+    return _issue(db, user, i, i["github_url"], "unverified")
 
-    # Re-seal the passport so that github_id and ownership_verified are sealed cryptographically
-    sha256_hash, final_payload = _seal_passport(passport)
-    record.sha256_hash = sha256_hash
-    record.payload_json = canonical_json_dumps(final_payload)
-    if hasattr(record, "github_id"):
-        record.github_id = github_id
-    if db:
-        db.commit()
 
-    return AnalyzeResponse(
-        passport_id=record.passport_id,
-        status=record.status,
-        role_match_score=record.role_match_score,
-        target_role=record.target_role,
-        sha256_hash=record.sha256_hash,
-        is_demo=record.is_demo,
-        passport=passport,
-        created_at=record.created_at.isoformat(),
-    )
+# ---------------------------------------------------------------------------
+# Passports
+# ---------------------------------------------------------------------------
+def _owner_name(db: Session, record: PassportRecord) -> Optional[str]:
+    if not record.owner_id:
+        return None
+    u = db.query(UserRecord).filter(UserRecord.id == record.owner_id).first()
+    return u.display_name if u else None
+
+
+def passport_view(db: Session, record: PassportRecord) -> Dict[str, Any]:
+    """Sealed payload plus presentation fields. The sealed fields are returned untouched."""
+    payload = json.loads(record.payload_json)
+    if not isinstance(payload, dict):
+        payload = {}
+    legacy = "signature" not in payload
+    view = dict(payload)
+    view.update({
+        "id": record.passport_id, "passport_id": record.passport_id,
+        "candidate": _owner_name(db, record) or payload.get("candidate") or "Unassigned",
+        "targetRole": record.target_role, "hash": record.sha256_hash,
+        "issuedAt": record.created_at.isoformat(), "status": record.status,
+        "userId": record.owner_id, "ownership": record.ownership or ("legacy" if legacy else "unverified"),
+        "ownershipVerified": record.ownership == "oauth_verified",
+        "isDemo": bool(record.is_demo), "revoked": bool(record.share_revoked),
+        "unassigned": record.owner_id is None, "legacy": legacy,
+        "integrityScheme": "legacy-client-sealed" if legacy else "canonical-json-sha256-v1",
+    })
+    return view
+
+
+def _public_view(db: Session, record: PassportRecord) -> Dict[str, Any]:
+    v = passport_view(db, record)
+    for k in ("quiz_questions", "userId", "notes", "unassigned"):
+        v.pop(k, None)
+    v["integrity"] = {"valid": None} if v["legacy"] else verify_passport_integrity(record.passport_id, db)
+    return v
+
+
+def _visible(user: UserRecord, record: PassportRecord) -> bool:
+    return user.role == "recruiter" or record.owner_id == user.id
+
+
+def _get_visible(db: Session, user: UserRecord, passport_id: str) -> PassportRecord:
+    record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
+    # 404 (not 403) for other applicants' passports so ids cannot be probed.
+    if record is None or not _visible(user, record):
+        raise HTTPException(404, f"Passport '{passport_id}' not found.")
+    return record
+
+
+def _get_owned(db: Session, user: UserRecord, passport_id: str) -> PassportRecord:
+    if user.role != "applicant":
+        raise HTTPException(403, "Only the applicant who owns a passport can do this.")
+    record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
+    if record is None or record.owner_id != user.id:
+        raise HTTPException(404, f"Passport '{passport_id}' not found.")
+    return record
 
 
 @router.get("/passports")
-def list_all_passports(db: Session = Depends(get_db)):
-    """
-    Lists all stored skill passports across all candidates, browsers, and sessions.
-    Allows real-time cross-browser synchronization for recruiter leaderboards.
-    """
-    records = db.query(PassportRecord).order_by(PassportRecord.created_at.desc()).all()
-    results = []
-    for record in records:
-        try:
-            payload = json.loads(record.payload_json)
-            if isinstance(payload, dict):
-                payload["id"] = payload.get("id") or record.passport_id
-                payload["passport_id"] = record.passport_id
-                payload["targetRole"] = payload.get("targetRole") or record.target_role
-                payload["candidate"] = payload.get("candidate") or payload.get("candidate_name") or "Applicant"
-                payload["hash"] = payload.get("hash") or record.sha256_hash
-                payload["status"] = payload.get("status") or record.status
-                payload["issuedAt"] = payload.get("issuedAt") or record.created_at.isoformat()
-                results.append(payload)
-        except Exception:
-            continue
-    return results
+def list_passports(user: UserRecord = Depends(accounts.require_user), db: Session = Depends(get_db)):
+    """Applicants: their own passports. Recruiters: every passport (read-only)."""
+    q = db.query(PassportRecord).order_by(PassportRecord.created_at.desc())
+    if user.role == "applicant":
+        q = q.filter(PassportRecord.owner_id == user.id)
+    return [passport_view(db, r) for r in q.all()]
 
 
-@router.post("/passports")
-async def save_or_sync_passport(request: Request, db: Session = Depends(get_db)):
-    """
-    Saves or updates a candidate skill passport into the persistent database.
-    Ensures that when a passport is generated in one browser, any recruiter dashboard
-    running in another browser dynamically sees it in the leaderboard.
-    """
-    body = await request.json()
-    passport_id = body.get("id") or body.get("passport_id") or f"PP-{int(datetime.utcnow().timestamp())}"
-    target_role = body.get("targetRole") or body.get("target_role") or "Software Engineer"
-    candidate = body.get("candidate") or body.get("candidate_name") or "Applicant"
-    skills = body.get("skills") or []
-    hash_val = body.get("hash") or body.get("sha256_hash") or f"hash_{passport_id}"
+@router.post("/passports", include_in_schema=False)
+async def create_passport_disabled(user: UserRecord = Depends(accounts.require_user)):
+    raise HTTPException(status.HTTP_410_GONE, "Passports cannot be created or overwritten by clients. "
+                                              "They are issued by the verification pipeline (POST /verify).")
 
-    body["id"] = passport_id
-    body["passport_id"] = passport_id
-    body["candidate"] = candidate
-    body["targetRole"] = target_role
-    body["hash"] = hash_val
 
-    record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
-    if record:
-        record.target_role = target_role
-        record.sha256_hash = hash_val
-        record.payload_json = json.dumps(body)
-        record.claims_json = json.dumps(skills)
-        record.updated_at = datetime.utcnow()
-    else:
-        record = PassportRecord(
-            passport_id=passport_id,
-            target_role=target_role,
-            role_match_score=float(body.get("role_match_score", 0.0) or 0.0),
-            candidate_consent=True,
-            status=body.get("status", "issued"),
-            sha256_hash=hash_val,
-            payload_json=json.dumps(body),
-            claims_json=json.dumps(skills),
-            verification_json=json.dumps({
-                "verified_skills": [s.get("skill") for s in skills if isinstance(s, dict) and s.get("state") in ("V", "S")]
-            }),
-            quiz_questions_json="[]",
-            quiz_history_json="{}",
-            is_demo=bool(body.get("is_demo", False)),
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(record)
+@router.get("/passports/{passport_id}")
+def get_passport(passport_id: str, user: UserRecord = Depends(accounts.require_user), db: Session = Depends(get_db)):
+    """Detail contract (passport_id, sha256_hash, passport, ...) plus the presentation fields of the list view."""
+    record = _get_visible(db, user, passport_id)
+    view = passport_view(db, record)
+    view.update({
+        "role_match_score": record.role_match_score, "sha256_hash": record.sha256_hash, "is_demo": bool(record.is_demo),
+        "passport": json.loads(record.payload_json), "created_at": record.created_at.isoformat(),
+        "updated_at": record.updated_at.isoformat(), **evidence_summary(record),
+        "integrity_note": "SHA-256 seal guarantees payload integrity against post-issuance tampering. "
+                          "It does not verify candidate identity or prove claim accuracy.",
+    })
+    return view
+
+
+class SharingBody(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    revoked: bool
+
+
+@router.patch("/passports/{passport_id}/sharing")
+def set_sharing(passport_id: str, body: SharingBody, user: UserRecord = Depends(accounts.require_applicant),
+                db: Session = Depends(get_db)):
+    """Owner toggles the public share link. This is not part of the sealed payload and not a verification status."""
+    record = _get_owned(db, user, passport_id)
+    record.share_revoked = body.revoked
     db.commit()
-    return body
+    return {"passport_id": passport_id, "revoked": record.share_revoked}
 
 
-@router.get("/passports/{passport_id}", response_model=PassportDetailResponse)
-def get_passport(passport_id: str, db: Session = Depends(get_db)):
-    """Retrieves a stored skill passport by ID."""
+@router.get("/shared/passports/{passport_id}")
+def get_shared_passport(passport_id: str, db: Session = Depends(get_db)):
+    """Public read-only view for share links. No quiz material, no owner id; honours revocation."""
     record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Passport '{passport_id}' not found.",
-        )
+    if record is None:
+        raise HTTPException(404, f"Passport '{passport_id}' not found.")
+    if record.share_revoked:
+        raise HTTPException(status.HTTP_410_GONE, "The owner has revoked this share link.")
+    return _public_view(db, record)
 
-    raw_payload = json.loads(record.payload_json)
-    try:
-        passport_payload = PassportPayload(**raw_payload)
-    except Exception:
-        passport_payload = raw_payload
 
-    return PassportDetailResponse(
-        passport_id=record.passport_id,
-        target_role=record.target_role,
-        role_match_score=record.role_match_score,
-        status=record.status,
-        sha256_hash=record.sha256_hash,
-        is_demo=record.is_demo,
-        passport=passport_payload,
-        created_at=record.created_at.isoformat(),
-        updated_at=record.updated_at.isoformat(),
-    )
+class IntegrityCheckBody(BaseModel):
+    payload: Dict[str, Any]
+    hash: str
+
+
+@router.post("/integrity/check")
+def integrity_check(body: IntegrityCheckBody):
+    """Stateless, public: recompute the canonical SHA-256 of any passport payload and compare."""
+    return check_payload_integrity(body.payload, body.hash)
 
 
 @router.get("/passports/{passport_id}/quiz", response_model=List[PublicQuizQuestion])
-def get_passport_quiz(passport_id: str, db: Session = Depends(get_db)):
-    """
-    Returns micro-verification quiz questions for a passport.
-    Private expected answer hints are strictly omitted.
-    """
-    record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Passport '{passport_id}' not found.",
-        )
-
-    stored_questions = json.loads(record.quiz_questions_json)
-    public_questions = [
-        PublicQuizQuestion(
-            question_id=q["question_id"],
-            claim_id=q["claim_id"],
-            skill=q["skill"],
-            question_type=q["question_type"],
-            question_text=q["question_text"],
-            context_snippet=q.get("context_snippet"),
-        )
-        for q in stored_questions
+def get_passport_quiz(passport_id: str, user: UserRecord = Depends(accounts.require_applicant),
+                      db: Session = Depends(get_db)):
+    """Micro-verification questions (private hints omitted). Owner only."""
+    record = _get_owned(db, user, passport_id)
+    return [
+        PublicQuizQuestion(question_id=q["question_id"], claim_id=q["claim_id"], skill=q["skill"],
+                           question_type=q["question_type"], question_text=q["question_text"],
+                           context_snippet=q.get("context_snippet"))
+        for q in json.loads(record.quiz_questions_json)
     ]
-    return public_questions
 
 
 @router.post("/passports/{passport_id}/quiz/answers", response_model=QuizEvaluationResponse)
-def submit_quiz_answers(
-    passport_id: str,
-    submission: QuizSubmissionRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Submits candidate quiz answers:
-    - Verifies question ownership and disallows duplicate submissions
-    - Evaluates answers using deterministic M4 rubrics
-    - Recalculates skill assessments, role match, and updates SHA-256 seal atomically
-    """
+def submit_quiz_answers(passport_id: str, submission: QuizSubmissionRequest,
+                        user: UserRecord = Depends(accounts.require_applicant), db: Session = Depends(get_db)):
+    """Owner only. States are recomputed by the backend; the client never supplies a state."""
+    _get_owned(db, user, passport_id)
     try:
-        results, updated_passport, record = evaluate_quiz_submission(
-            passport_id=passport_id,
-            answers=submission.answers,
-            db=db,
-        )
+        results, updated_passport, record = evaluate_quiz_submission(passport_id=passport_id, answers=submission.answers, db=db)
     except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        )
+        raise HTTPException(404, str(exc))
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        )
+        raise HTTPException(400, str(exc))
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Quiz evaluation failed: {exc}",
-        )
-
-    return QuizEvaluationResponse(
-        passport_id=record.passport_id,
-        results=results,
-        updated_role_match_score=record.role_match_score,
-        updated_hash=record.sha256_hash,
-        passport=updated_passport,
-    )
+        raise HTTPException(500, f"Quiz evaluation failed: {exc}")
+    return QuizEvaluationResponse(passport_id=record.passport_id, results=results,
+                                  updated_role_match_score=record.role_match_score,
+                                  updated_hash=record.sha256_hash, passport=updated_passport)
 
 
 @router.get("/passports/{passport_id}/verify", response_model=IntegrityVerifyResponse)
-def verify_passport(passport_id: str, db: Session = Depends(get_db)):
-    """
-    Verifies stored payload integrity using canonical JSON and SHA-256 digest.
-    Confirms payload has not been modified since issuance.
-    """
+def verify_passport(passport_id: str, user: UserRecord = Depends(accounts.require_user), db: Session = Depends(get_db)):
+    """Integrity check of the stored payload against its SHA-256 seal (owner or recruiter)."""
+    _get_visible(db, user, passport_id)
     try:
         res = verify_passport_integrity(passport_id=passport_id, db=db)
     except KeyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        )
-
-    return IntegrityVerifyResponse(
-        passport_id=res["passport_id"],
-        valid=res["valid"],
-        stored_hash=res["stored_hash"],
-        computed_hash=res["computed_hash"],
-        message=res["message"],
-    )
+        raise HTTPException(404, str(exc))
+    return IntegrityVerifyResponse(**{k: res[k] for k in ("passport_id", "valid", "stored_hash", "computed_hash", "message")})
 
 
 @router.delete("/passports/{passport_id}", response_model=DeletePassportResponse)
-def delete_passport(passport_id: str, db: Session = Depends(get_db)):
-    """
-    Candidate data deletion / right-to-erasure endpoint.
-    Permanently removes passport record and all intermediate data.
-    """
-    record = db.query(PassportRecord).filter(PassportRecord.passport_id == passport_id).first()
-    if not record:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Passport '{passport_id}' not found.",
-        )
-
+def delete_passport(passport_id: str, user: UserRecord = Depends(accounts.require_applicant),
+                    db: Session = Depends(get_db)):
+    """Right to erasure: the owning applicant only. Recruiters and other applicants cannot delete."""
+    record = _get_owned(db, user, passport_id)
     db.delete(record)
     db.commit()
-
-    return DeletePassportResponse(
-        passport_id=passport_id,
-        deleted=True,
-        message="Candidate passport and verification data permanently deleted.",
-    )
+    return DeletePassportResponse(passport_id=passport_id, deleted=True,
+                                  message="Passport and associated verification records permanently deleted.")

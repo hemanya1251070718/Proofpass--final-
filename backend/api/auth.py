@@ -335,6 +335,23 @@ def auth_me(request: Request):
     )
 
 
+class GitHubSessionProbe(BaseModel):
+    connected: bool
+    github_login: Optional[str] = None
+    github_id: Optional[int] = None
+    avatar_url: Optional[str] = None
+
+
+@auth_router.get("/github/session", response_model=GitHubSessionProbe)
+def github_session_probe(request: Request):
+    """Always 200: whether a GitHub OAuth session exists (avoids a 401 on every Verify visit)."""
+    session = get_current_session(request)
+    if not session:
+        return GitHubSessionProbe(connected=False)
+    return GitHubSessionProbe(connected=True, github_login=session["github_login"],
+                              github_id=session["github_id"], avatar_url=session.get("avatar_url"))
+
+
 @auth_router.post("/logout")
 def auth_logout(response: Response):
     """Terminates active session and clears httpOnly session cookie."""

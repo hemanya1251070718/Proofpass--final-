@@ -4,7 +4,7 @@
  * and inline validation using the existing ProofPass card and token system.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
 import Seg from './Seg.jsx'
@@ -72,6 +72,22 @@ export default function Login() {
   // Validation & Status
   const [errors, setErrors] = useState({})
   const [statusMessage, setStatusMessage] = useState(location.state?.notice || null)
+  // Be honest about storage: the free demo deployment keeps data on an ephemeral filesystem.
+  const [storageNote, setStorageNote] = useState(null)
+  useEffect(() => {
+    let live = true
+    fetch('/api/v1/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => {
+        if (live && h && h.persistent_storage === false) {
+          setStorageNote('Demo deployment: accounts and passports are stored on temporary server storage and are erased whenever the app restarts or is redeployed.')
+        }
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Experience Entry handlers for Applicant
@@ -179,8 +195,8 @@ export default function Login() {
 
     if (!password) {
       errs.password = 'Password is required.'
-    } else if (password.length < 6) {
-      errs.password = 'Password must be at least 6 characters.'
+    } else if (activeTab !== 'login' && password.length < 8) {
+      errs.password = 'Password must be at least 8 characters.'
     }
 
     if (activeTab === 'signup') {
@@ -316,7 +332,8 @@ export default function Login() {
               <span className="notice-dot" aria-hidden="true" />
               <span>
                 {statusMessage ||
-                  'Prototype: accounts live in this browser only. No data leaves your machine.'}
+                  storageNote ||
+                  'Accounts and passports are stored on the ProofPass server. Resumes you submit are processed by the verification engine.'}
               </span>
             </div>
 

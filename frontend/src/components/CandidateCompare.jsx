@@ -102,7 +102,7 @@ export default function CandidateCompare() {
         const roleTitleClean = (r.title || '').toLowerCase().trim()
 
         for (const p of browserPassports) {
-          if (p.revoked) continue
+          if (p.revoked || p.legacy) continue
 
           const pId = p.id || p.passport_id
           if (!pId || existingPassportIds.has(pId) || existingPassportIds.has(`live_${pId}`)) {
@@ -138,6 +138,7 @@ export default function CandidateCompare() {
               hasPassport: true,
               passport: p,
               isLiveDemo: true,
+              isDemo: Boolean(p.isDemo),
               skills: pSkills,
             })
             existingPassportIds.add(pId)
@@ -392,6 +393,7 @@ export default function CandidateCompare() {
                       <div className="compare-picker-info">
                         <div className="compare-picker-name">
                           <strong>{hideNames ? `Candidate #${cand.id.slice(-4)}` : cand.name}</strong>
+                          {cand.isDemo && <span className="lb-tag ml-6" title="Browser-seeded sample candidate">DEMO DATA</span>}
                           {cand.isLiveDemo && <span className="lb-tag ml-6">Live</span>}
                           {cand.isRecruiterGenerated && <span className="lb-tag ml-6">Generated</span>}
                         </div>
@@ -486,6 +488,7 @@ export default function CandidateCompare() {
                           <strong className="candidate-header-name">
                             {hideNames ? `Candidate #${cand.rank.toString().padStart(2, '0')}` : cand.name}
                           </strong>
+                          {cand.isDemo && <span className="live-demo-tag">DEMO DATA</span>}
                           {cand.isLiveDemo && (
                             <span className="live-demo-tag">Live demo</span>
                           )}

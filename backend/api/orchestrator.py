@@ -18,14 +18,20 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from backend.verification import verify, extract_resume_text
+from backend.verification import extract_resume_text
+from backend.verification.github_client import GitHubAPIError
+from backend.verification.verifier import verify_github_source
 from backend.verification.models import (
     Claim,
     VerificationResult,
     UsageDepth,
 )
 from backend.intelligence.models import (
+    ClaimState,
+    EvidenceChainItem,
     PassportPayload,
+    SkillAssessment,
+    TrustCeiling,
     TargetRole,
     QuizQuestion,
     QuizAnswer,
@@ -48,6 +54,35 @@ from backend.schemas import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class VerificationUnavailable(Exception):
+    """GitHub could not be reached or rate-limited us. No evidence is invented in that case."""
+
+
+OWNERSHIP_NOTE = "Ownership Unverified: GitHub ownership was not authenticated, so no skill can be Verified (maximum Supported)."
+
+
+def apply_ownership_cap(assessments: List[SkillAssessment], ownership: str) -> List[SkillAssessment]:
+    """Without OAuth-proven GitHub ownership a skill can never be Verified. Mutates and returns the list."""
+    if ownership == "oauth_verified":
+        for a in assessments:
+            for item in a.evidence_chain:
+                if item.source == "repo":
+                    item.ownership_verified = True
+        return assessments
+    for a in assessments:
+        for item in a.evidence_chain:
+            if item.source == "repo":
+                item.ownership_verified = False
+        if a.claim_state == ClaimState.VERIFIED:
+            a.claim_state = ClaimState.SUPPORTED
+            a.credibility = min(a.credibility, 0.6)
+            a.evidence_chain.append(EvidenceChainItem(
+                source="repo", label="Ownership Unverified", detail=OWNERSHIP_NOTE,
+                ownership_verified=False, ceiling_applied=TrustCeiling.CANDIDATE_SUPPLIED,
+            ))
+    return assessments
 
 
 def _seal_passport(passport: PassportPayload) -> Tuple[str, Dict[str, Any]]:
@@ -96,6 +131,10 @@ def run_analyze_pipeline(
     job_description: Optional[str] = None,
     allow_network: bool = True,
     db: Optional[Session] = None,
+    owner_id: Optional[str] = None,
+    ownership: str = "unverified",
+    github_id: Optional[int] = None,
+    github_login: Optional[str] = None,
 ) -> Tuple[PassportPayload, PassportRecord]:
     """
     Execute the end-to-end passport analysis pipeline.
@@ -152,11 +191,16 @@ def run_analyze_pipeline(
     )
 
     # 3. Verify claims through the M3 interface.
-    verification_result = verify(
-        claims=claims,
-        github_url=github_url.strip(),
-        allow_network=allow_network,
-    )
+    try:
+        verification_result = verify_github_source(
+            claims=claims,
+            github_url=github_url.strip(),
+            allow_network=allow_network,
+        )
+    except GitHubAPIError as exc:
+        raise VerificationUnavailable(
+            f"GitHub could not be queried ({exc}). No verification result was produced; try again later."
+        ) from exc
 
     # 4. Generate quizzes only when the claim has usable, file-backed evidence.
     # A matching claim_id alone is insufficient: M3 can return an Evidence
@@ -192,6 +236,7 @@ def run_analyze_pipeline(
         verification=verification_result,
         quiz_results={},
     )
+    apply_ownership_cap(assessments, ownership)
 
     # 6. Build the canonical passport.
     passport = build_passport(
@@ -202,7 +247,11 @@ def run_analyze_pipeline(
         candidate_consent=candidate_consent,
     )
 
-    # 7. Seal the passport.
+    passport.ownership = ownership  # type: ignore[assignment]
+    passport.github_id = github_id
+    passport.github_login = github_login
+
+    # 7. Seal the passport (ownership and GitHub identity are part of the sealed payload).
     sha256_hash, final_payload = _seal_passport(passport)
 
     # 8. Build the persistence record.
@@ -232,6 +281,9 @@ def run_analyze_pipeline(
         # This flag reflects whether network access was disabled for the run.
         # It does not prove whether M3 used live or fallback evidence.
         is_demo=not allow_network,
+        owner_id=owner_id,
+        ownership=ownership,
+        github_id=github_id,
         created_at=now,
         updated_at=now,
     )
@@ -372,6 +424,9 @@ def evaluate_quiz_submission(
         verification=verification,
         quiz_results=quiz_results_by_claim,
     )
+    previous_payload = json.loads(record.payload_json or "{}")
+    ownership = record.ownership or previous_payload.get("ownership") or "unverified"
+    apply_ownership_cap(assessments, ownership)
 
     updated_passport = build_passport(
         claims=claims,
@@ -381,8 +436,13 @@ def evaluate_quiz_submission(
         candidate_consent=record.candidate_consent,
     )
 
-    # Preserve the original externally issued passport ID.
+    # Preserve the original externally issued passport ID and sealed identity fields.
     updated_passport.passport_id = record.passport_id
+    updated_passport.ownership = ownership
+    updated_passport.github_id = previous_payload.get("github_id")
+    updated_passport.github_login = previous_payload.get("github_login")
+    if previous_payload.get("generated_at"):
+        updated_passport.generated_at = previous_payload["generated_at"]
 
     new_hash, final_payload = _seal_passport(updated_passport)
 
@@ -451,4 +511,22 @@ def verify_passport_integrity(
         "stored_hash": record.sha256_hash,
         "computed_hash": computed_hash,
         "message": message,
+    }
+
+
+def check_payload_integrity(payload: Dict[str, Any], claimed_hash: str) -> Dict[str, Any]:
+    """Stateless canonical integrity check: anyone holding a passport payload and its hash can run this.
+
+    Scheme `canonical-json-sha256-v1`: set `signature` to null, serialize with sorted keys and compact
+    separators (UTF-8, no ASCII escaping), take SHA-256 of that text.
+    """
+    body = dict(payload)
+    body["signature"] = None
+    computed = compute_integrity_hash(body)
+    sig = payload.get("signature")
+    return {
+        "valid": computed == claimed_hash and (sig in (None, f"sha256:{computed}")),
+        "computed_hash": computed,
+        "claimed_hash": claimed_hash,
+        "scheme": "canonical-json-sha256-v1",
     }

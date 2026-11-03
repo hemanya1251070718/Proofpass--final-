@@ -41,6 +41,15 @@ def override_get_db():
 
 app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
+from tests.auth_helpers import register
+
+
+@pytest.fixture(autouse=True)
+def _signed_in_applicant():
+    """Every test in this module runs as a freshly registered applicant."""
+    client.cookies.clear()
+    register(client, "applicant")
+    yield
 
 
 def _make_sample_pdf(text_lines: list[str]) -> bytes:

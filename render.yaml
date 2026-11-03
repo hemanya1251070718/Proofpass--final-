@@ -1,3 +1,9 @@
+# Free-plan deployment (GBP 0 / INR 0): no paid instance, disk or database.
+#
+# LIMITATION: the Free plan has no persistent disk. SQLite lives on the container's ephemeral filesystem, so all
+# accounts, passports and sessions are erased on every redeploy and whenever the free instance restarts or spins
+# down after idling. The app still starts and says so (GET /api/v1/health -> persistent_storage:false, startup log,
+# login notice). Treat this deployment as a demo, not as durable storage. See README "Deployment notes".
 services:
   - type: web
     name: proofpass
@@ -17,3 +23,18 @@ services:
         value: sqlite:///./proofpass.db
       - key: COOKIE_SECURE
         value: "true"
+      # Set these in the Render dashboard (never commit values):
+      - key: FRONTEND_ORIGIN          # e.g. https://proofpass.onrender.com
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_REDIRECT_URI      # https://<host>/api/v1/auth/github/callback
+        sync: false
+      - key: GITHUB_TOKEN             # free token: raises live verification quota from 60 to 5000 requests/hour
+        sync: false
+      - key: COURSE_CSV_URL           # https URL of the Coursera CSV (not committed; see README). Re-imported on each start.
+        sync: false
+      - key: COURSE_CSV_SHA256
+        sync: false

@@ -5,6 +5,7 @@ Handles URL parsing, metadata extraction, recursive tree listing, and commit vel
 from __future__ import annotations
 
 import base64
+from urllib.parse import quote
 import os
 import re
 import time
@@ -83,11 +84,39 @@ class GitHubClient:
         token: Optional[str] = None,
         cache_ttl_seconds: int = 3600,
         session: Optional[requests.Session] = None,
+        prefer_raw_content: bool = False,
     ):
         self.token = token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
         self.cache_ttl = cache_ttl_seconds
         self.session = session or requests.Session()
         self._cache: Dict[str, Tuple[float, Any]] = {}
+        # Public file bodies come from raw.githubusercontent.com, which does not spend the REST API quota
+        # (60/hour unauthenticated). Without this, one repository scan costs dozens of API calls.
+        self.prefer_raw_content = prefer_raw_content
+
+    RAW_URL = "https://raw.githubusercontent.com"
+    MAX_RAW_BYTES = 512_000
+
+    def _get_raw(self, owner: str, repo: str, file_path: str, branch: str) -> Tuple[bool, Optional[str]]:
+        """(handled, text). handled=False means the caller should fall back to the contents API."""
+        key = f"raw:{owner}/{repo}@{branch}:{file_path}"
+        now = time.time()
+        if key in self._cache and now - self._cache[key][0] < self.cache_ttl:
+            return True, self._cache[key][1]
+        url = f"{self.RAW_URL}/{owner}/{repo}/{quote(branch, safe='')}/{quote(file_path)}"
+        try:
+            resp = self.session.get(url, headers={"User-Agent": "ProofPass-VerificationEngine/1.0"}, timeout=15)
+        except requests.RequestException:
+            return False, None
+        if resp.status_code == 404:
+            return True, None
+        if resp.status_code == 429:
+            raise RateLimitError("raw.githubusercontent.com rate limit exceeded")
+        if not resp.ok:
+            return False, None
+        text = resp.content[: self.MAX_RAW_BYTES].decode("utf-8", errors="replace")
+        self._cache[key] = (now, text)
+        return True, text
 
     def _headers(self) -> Dict[str, str]:
         headers = {
@@ -121,6 +150,11 @@ class GitHubClient:
         data = resp.json()
         self._cache[cache_key] = (now, data)
         return data
+
+    def list_user_repos(self, login: str, limit: int = 30) -> List[Dict[str, Any]]:
+        """Public repositories of a user, most recently pushed first (raises on API errors)."""
+        data = self._get(f"/users/{login}/repos", params={"per_page": min(limit, 100), "sort": "pushed", "type": "owner"})
+        return [r for r in data if isinstance(r, dict)]
 
     def get_repo_metadata(self, owner: str, repo: str) -> RepoMetadata:
         """Fetches repo metadata (fork status, fork source, default branch, size)."""
@@ -157,6 +191,10 @@ class GitHubClient:
 
     def get_file_content(self, owner: str, repo: str, file_path: str, branch: str = "main") -> Optional[str]:
         """Fetches and decodes the plain text content of a file."""
+        if self.prefer_raw_content:
+            handled, text = self._get_raw(owner, repo, file_path, branch)
+            if handled:
+                return text
         try:
             data = self._get(f"/repos/{owner}/{repo}/contents/{file_path}", params={"ref": branch})
             if "content" in data and data.get("encoding") == "base64":

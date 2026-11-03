@@ -68,6 +68,40 @@ npm run dev
 
 ---
 
+## Accounts, Roles and Passport Access
+
+- Two account types, chosen at registration and fixed server-side: **Applicant** and **Recruiter** (open sign-up, no approval).
+- Passwords are hashed with **Argon2id**. Login creates a **server-side session** stored in SQLite; the browser only holds an opaque `HttpOnly`, `SameSite=Lax` cookie (`Secure` when `COOKIE_SECURE=true` or the frontend origin is https). Logout deletes the session. Nothing credential-like is kept in localStorage.
+- Every passport belongs to the applicant whose session created it. Applicants can read, delete and toggle sharing on **their own** passports only. Recruiters have **read-only** access to all passports and cannot create, overwrite, verify or delete any.
+- Existing passports from before accounts (no owner) are kept untouched and stay unassigned; only recruiters can read them and they are not used in rankings.
+
+## Verification (backend is the single authority)
+
+- The eight-step Verify screen collects input and shows progress, but the **backend** reads the resume, inspects GitHub, assigns every skill state, grades the micro-checks and seals the passport. The browser never decides a state.
+- **Connect GitHub** (OAuth) proves ownership of the account. A **public GitHub URL** is accepted as a fallback and is labelled **Ownership Unverified**: no skill can then exceed *Supported*.
+- A skill becomes *Verified* only when the backend finds authored code **and** the micro-check is passed (and ownership is OAuth-verified).
+- Verification weights: Verified 1.0, Supported 0.6, Claimed 0.2, Contradicted 0.0 (role-matching in Part 3 uses its own 1.0/0.7/0.35/0.0).
+- If GitHub is unreachable or rate-limited the request fails with a clear message. No evidence is ever substituted. Set `GITHUB_TOKEN` (backend `.env`) to raise the limit from 60 to 5,000 requests/hour.
+- Coding-platform profiles, certificates and ZIP uploads are not verified by the backend and are not accepted.
+- Canonical integrity: `signature = null`, serialise with sorted keys and compact separators (UTF-8), SHA-256. Anyone can re-check a payload with `POST /api/v1/integrity/check`.
+
+## Course catalogue (Part 1)
+
+The Coursera CSV is not committed (licence unverified). Place it at `backend/data/CourseraDataset-Clean.csv`, then run `python -m backend.recommendations.course_import` (idempotent).
+
+## Deployment notes (Render Free plan, zero cost)
+
+ProofPass is a college project with a strict zero-cost budget, so `render.yaml` uses Render's **Free** plan only: no paid instance, no persistent disk, no paid database or API.
+
+**Important limitation - data is NOT persistent.** The database is SQLite on the container's ephemeral filesystem. On the Free plan all **accounts, passports, sessions and sharing settings are erased** on every redeploy and whenever the free instance restarts or spins down after about 15 minutes of inactivity. The app deliberately still starts and says so: `GET /api/v1/health` returns `persistent_storage: false`, the login page shows a notice, and the startup log contains `EPHEMERAL DATABASE`. Treat the hosted instance as a live demo; register fresh accounts for each session. Security protections (Argon2id, server-side sessions, ownership checks, CSRF/Origin checks, no synthetic evidence) are unchanged. Data persistence would need a paid disk or database, which is out of scope for this project (locally, `proofpass.db` is a normal file and does persist).
+
+- **Course dataset:** the Coursera CSV is not committed (licence unverified). Two zero-cost ways to get it into the app:
+  1. *Baked into the image (local `docker build`):* put the file at `backend/data/CourseraDataset-Clean.csv` first. It is the only file from `backend/data` that enters the image (`.dockerignore`), and it is imported at every container start.
+  2. *Downloaded at start-up (Render):* host the file at any free https URL you control (for example a **GitHub Release asset** on your repository) and set `COURSE_CSV_URL` (optionally `COURSE_CSV_SHA256`) in the Render dashboard. The container downloads it (https only, 50 MB cap, checksum verified), imports it, and still starts if the download fails. Because the database is ephemeral, it is re-imported on every start (a few seconds).
+- **GitHub quota:** unauthenticated live verification is limited to 60 REST calls/hour per IP. File contents are read from `raw.githubusercontent.com` (not counted), but set a free `GITHUB_TOKEN` for real use. If GitHub is rate-limited the request fails with 503 and nothing is stored.
+- **Same-origin hosting:** the backend serves the built SPA, so cookies, CORS and the Origin check line up. Set `FRONTEND_ORIGIN`/`CORS_ORIGINS` only for a separately hosted frontend; wildcards are ignored.
+- **Demonstration data:** the recruiter screens contain browser-seeded sample candidates, always tagged **DEMO DATA**. They are not real applicants.
+
 ## GitHub OAuth App Setup
 
 To enable real GitHub sign-in and OAuth-verified repository authorship:

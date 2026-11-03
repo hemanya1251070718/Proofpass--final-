@@ -85,6 +85,7 @@ class Evidence(BaseModel):
     authorship_signal: AuthorshipSignal = AuthorshipSignal.NONE
     commit_count: int = Field(ge=0, default=0)
     conflicts: List[str] = Field(default_factory=list)
+    repo: Optional[str] = None  # "owner/name" the evidence was read from (profile-level verification)
 
 
 class RepoMetadata(BaseModel):
