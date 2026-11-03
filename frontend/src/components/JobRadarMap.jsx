@@ -1154,43 +1154,85 @@ export default function JobRadarMap() {
             {/* Leaflet Canvas Element */}
             <div ref={mapContainerRef} className="leaflet-map-element" />
 
-            {/* Bottom Floating Dynamic Transit HUD (OSRM Powered with WP7 Glass & Fallback) */}
+            {/* Mercedes MBUX / Audi MMI Telemetry Navigation Deck */}
             {perspective === 'candidate' && selectedCompany && selectedCompany.workMode !== 'Remote' && (
-              <div key={selectedCompany.id} className="radar-floating-transit-hud jr-glass jr-hud-crossfade">
-                <div className="transit-left">
-                  <div className="transit-title">
-                    <span className="transit-badge-road">
-                      {roadRouteData.isRoadRoute ? '🚗 Real Road Transit' : '⚡ Commute Estimate'}
+              <div key={selectedCompany.id} className="jr-cockpit-hud jr-hud-crossfade">
+                {/* 1. Left Section: Waypoint & Destination Identity */}
+                <div className="jr-cockpit-dest">
+                  <div className="jr-cockpit-status-row">
+                    <span className="jr-cockpit-pill">
+                      <span className="jr-cockpit-pulse-dot" aria-hidden="true" />
+                      <span>{roadRouteData.isRoadRoute ? 'OSRM LIVE TELEMETRY' : 'COMMUTE CORRIDOR'}</span>
                     </span>
-                    <strong>{selectedCompany.name}</strong>
+                    <span className="jr-cockpit-corridor-tag">
+                      {selectedCompany.transit?.corridorName || 'Pune Tech Corridor'}
+                    </span>
                   </div>
-                  <div className="transit-metrics">
-                    <span className="transit-time-highlight jr-tabular">
-                      ⏱️ {roadRouteData.durationMin ? `${roadRouteData.durationMin}m commute` : `~${selectedCompany.transit?.travelTimeMinutes || 18}m driving estimate`}
-                    </span>
-                    <span className="transit-sep">·</span>
-                    <span className="transit-dist jr-tabular">
-                      📍 {roadRouteData.distanceKm || selectedCompany.distanceKm} km from {userCoords.name?.split('·')[1]?.trim() || userCoords.name?.split('(')[0]?.trim() || 'Origin'}
-                    </span>
-                    <span className="transit-sep">·</span>
-                    <span className="transit-corridor">
-                      via {selectedCompany.transit?.corridorName || 'Pune Expressway'}
+
+                  <h4 className="jr-cockpit-name">{selectedCompany.name}</h4>
+
+                  <div className="jr-cockpit-subline">
+                    <svg className="jr-cockpit-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                    </svg>
+                    <span className="jr-cockpit-origin-text">
+                      From {userCoords.name?.split('·')[1]?.trim() || userCoords.name?.split('(')[0]?.trim() || 'Origin'}
                     </span>
                   </div>
                 </div>
 
-                <div className="transit-right">
-                  <div className="transit-metro">
-                    🚇 {selectedCompany.transit?.metroLine || 'Pune Metro Line 3 Connected'}
+                {/* 2. Center Section: Digital Instrument Cluster Metrics */}
+                <div className="jr-cockpit-metrics">
+                  <div className="jr-cockpit-metric-cell">
+                    <div className="jr-cockpit-val-wrap jr-tabular">
+                      <span className="jr-cockpit-val">
+                        {roadRouteData.durationMin || selectedCompany.transit?.travelTimeMinutes || 20}
+                      </span>
+                      <span className="jr-cockpit-unit">MIN</span>
+                    </div>
+                    <span className="jr-cockpit-label">Commute Time</span>
                   </div>
+
+                  <div className="jr-cockpit-divider" aria-hidden="true" />
+
+                  <div className="jr-cockpit-metric-cell">
+                    <div className="jr-cockpit-val-wrap jr-tabular">
+                      <span className="jr-cockpit-val">
+                        {roadRouteData.distanceKm || selectedCompany.distanceKm}
+                      </span>
+                      <span className="jr-cockpit-unit">KM</span>
+                    </div>
+                    <span className="jr-cockpit-label">Road Distance</span>
+                  </div>
+                </div>
+
+                {/* 3. Right Section: Multi-Modal Metro Connection & Launch CTA */}
+                <div className="jr-cockpit-actions">
+                  {selectedCompany.transit?.metroLine && (
+                    <div className="jr-cockpit-metro-chip" title="Metro Rail Multi-Modal Link">
+                      <svg className="jr-cockpit-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="4" y="3" width="16" height="16" rx="2" />
+                        <path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3" />
+                        <circle cx="8" cy="15" r="1" fill="currentColor" />
+                        <circle cx="16" cy="15" r="1" fill="currentColor" />
+                      </svg>
+                      <span className="jr-cockpit-metro-text">{selectedCompany.transit.metroLine}</span>
+                    </div>
+                  )}
+
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&origin=${userCoords.lat},${userCoords.lng}&destination=${selectedCompany.coordinates.lat},${selectedCompany.coordinates.lng}&travelmode=driving`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="transit-gmaps-link"
-                    title="Open live Google Maps driving navigation in new tab"
+                    className="jr-cockpit-btn"
+                    title="Open live Google Maps turn-by-turn route navigation in new window"
                   >
-                    Google Maps Live Route ↗
+                    <span>Launch Navigation</span>
+                    <svg className="jr-cockpit-svg sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polygon points="3 11 22 2 13 21 11 13 3 11" />
+                    </svg>
                   </a>
                 </div>
               </div>

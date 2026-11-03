@@ -79,17 +79,32 @@ def api_health():
     }
 
 
-@app.get("/")
-def root():
-    return {
-        "service": "ProofPass API",
-        "version": "2.0.0",
-        "endpoints": {
-            "health": "/api/v1/health",
-            "docs": "/docs",
-            "openapi": "/openapi.json",
-        },
-    }
+dist_path = REPO_ROOT / "frontend" / "dist"
+if dist_path.exists() and (dist_path / "index.html").exists():
+    from fastapi.staticfiles import StaticFiles
+    from starlette.responses import FileResponse
+
+    if (dist_path / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=dist_path / "assets"), name="assets")
+
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    async def serve_spa(full_path: str):
+        file_path = dist_path / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(dist_path / "index.html")
+else:
+    @app.get("/")
+    def root():
+        return {
+            "service": "ProofPass API",
+            "version": "2.0.0",
+            "endpoints": {
+                "health": "/api/v1/health",
+                "docs": "/docs",
+                "openapi": "/openapi.json",
+            },
+        }
 
 
 if __name__ == "__main__":

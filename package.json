@@ -6,8 +6,8 @@
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "preview": "npm --prefix frontend run preview",
-    "backend": "python3 -m uvicorn backend.main:app --reload --port 8000",
-    "demo": "python3 rundemo.py",
-    "test:backend": "python3 -m pytest -q"
+    "backend": "([ -d .venv ] && .venv/bin/python3 -m uvicorn backend.main:app --reload --port 8000) || python3 -m uvicorn backend.main:app --reload --port 8000",
+    "demo": "([ -d .venv ] && .venv/bin/python3 rundemo.py) || python3 rundemo.py",
+    "test:backend": "([ -d .venv ] && .venv/bin/pytest -q) || python3 -m pytest -q"
   }
 }
