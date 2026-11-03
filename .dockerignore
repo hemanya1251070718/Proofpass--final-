@@ -19,3 +19,10 @@ passport_payload.json
 *.pdf
 tests
 docs
+.claude
+.cache
+*.db
+*.sqlite
+# backend/data may only contribute the course dataset to the image
+backend/data/*
+!backend/data/CourseraDataset-Clean.csv

@@ -35,6 +35,8 @@ def client(tmp_path, monkeypatch):
 
     monkeypatch.setattr(gp, "_request", fake_request)
     c = TestClient(app)
+    from tests.auth_helpers import register
+    register(c, "applicant")
     c.github_calls = calls
     yield c
     app.dependency_overrides.pop(get_db, None)

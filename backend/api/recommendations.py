@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from backend import accounts
 from backend.database import get_db, init_db
 from backend.recommendations import course_service, github_practice, semantic, service, skill_map
 from backend.recommendations.config import ROLE_EVIDENCE_WEIGHTS
@@ -16,6 +17,9 @@ from backend.recommendations.role_engine import STATE_ALIASES, CandidateSkill, m
 
 logger = logging.getLogger("proofpass.recommendations.api")
 recommendations_router = APIRouter(prefix="/recommendations", tags=["Recommendations & Role Matching"])
+
+# GitHub-search-backed endpoints share the server quota: cap each signed-in user.
+GITHUB_LIMIT = accounts.rate_limit("github-recs", limit=30, window_seconds=600)
 
 init_db()  # make sure Part 1 tables exist (models are imported above)
 
@@ -83,12 +87,12 @@ def courses(skill: str = Query(min_length=1, max_length=80), state: Optional[str
 
 @recommendations_router.get("/practice")
 def practice(skill: str = Query(min_length=1, max_length=80), limit: int = Query(default=3, ge=1, le=10),
-             db: Session = Depends(get_db)) -> Dict[str, Any]:
+             db: Session = Depends(get_db), _rl: None = Depends(GITHUB_LIMIT)) -> Dict[str, Any]:
     return github_practice.practice_for_skill(db, skill, limit=limit)
 
 
 @recommendations_router.post("/plan")
-def plan(body: PlanBody, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def plan(body: PlanBody, db: Session = Depends(get_db), _rl: None = Depends(GITHUB_LIMIT)) -> Dict[str, Any]:
     try:
         return service.build_plan(db, body.skills, body.target_role_id, body.top_roles, body.max_skills,
                                   body.courses_per_skill, body.practice_skills, resolver=semantic.get_resolver())

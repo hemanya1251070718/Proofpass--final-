@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { listPassports, setPassportRevoked, savePassport } from '../api/passports.js'
+import { listPassports, setPassportRevoked } from '../api/passports.js'
 import { fetchRoleMatches, getRecommendedRoles } from '../api/recommendations.js'
 import { getLatestRoleKey, listRoadmaps } from '../api/roadmaps.js'
 import { imochaLink } from '../data/resources.js'
@@ -114,8 +114,8 @@ export default function ApplicantDashboard() {
     if (!passport) return
     const nextRevoked = !passport.revoked
     try {
-      const updated = await setPassportRevoked(passport.id, nextRevoked)
-      setPassport(updated)
+      const res = await setPassportRevoked(passport.id, nextRevoked)
+      setPassport({ ...passport, revoked: res.revoked })
       setNotice(nextRevoked ? 'Passport share revoked.' : 'Passport share re-activated.')
     } catch (err) {
       setNotice(err.message)
@@ -131,36 +131,13 @@ export default function ApplicantDashboard() {
     setTimeout(() => setCopiedLink(false), 2200)
   }
 
-  // Self-submit iMocha assessment link
+  // Pasted result links are never evidence: skill states are decided only by the backend verification engine.
   const handleSelfSubmitLink = async (skill) => {
-    const link = selfSubmittedLinks[skill]?.trim()
-    if (!link) return
-
-    try {
-      // Lift skill to Supported at most with label "not yet checked"
-      const updatedSkills = passport.skills.map((s) => {
-        if (s.skill === skill && (s.state === 'C' || s.state === 'X')) {
-          return {
-            ...s,
-            state: 'S',
-            evidence: `Self-submitted assessment link: ${link} (not yet checked)`,
-            rationale: 'Supported: External assessment link submitted by candidate (not yet checked). Capped at Supported.',
-          }
-        }
-        return s
-      })
-
-      const updated = await savePassport({ ...passport, skills: updatedSkills }, user?.id)
-      setPassport(updated)
-      setSelfSubmittedLinks((prev) => ({ ...prev, [skill]: '' }))
-      setNotice(`Result link for ${skill} submitted. Skill elevated to Supported (not yet checked).`)
-
-      // Recompute role match
-      const roles = await getRecommendedRoles(updatedSkills)
-      setRecommendedRoles(roles)
-    } catch (err) {
-      setNotice(err.message)
-    }
+    if (!selfSubmittedLinks[skill]?.trim()) return
+    setSelfSubmittedLinks((prev) => ({ ...prev, [skill]: '' }))
+    setNotice(
+      `A pasted link cannot change the state of ${skill}. Re-run Verify with a repository that shows this skill, then pass the micro-check.`
+    )
   }
 
   if (loading) {
@@ -708,7 +685,7 @@ export default function ApplicantDashboard() {
                 Verify the Rest
               </h2>
               <p style={{ fontSize: '0.85rem', color: 'var(--muted)', margin: '4px 0 0' }}>
-                These skills currently have no code proof (Claimed) or have repository conflicts (Contradicted). Take a skill assessment on iMocha to earn Supported status.
+                These skills currently have no code proof (Claimed) or have repository conflicts (Contradicted). Take a skill assessment on iMocha to practise, then re-run Verify with your repositories: only the verification engine can change a skill's state.
               </p>
             </div>
 
@@ -758,10 +735,10 @@ export default function ApplicantDashboard() {
                       onClick={() => handleSelfSubmitLink(item.skill)}
                       disabled={!selfSubmittedLinks[item.skill]?.trim()}
                     >
-                      Submit for audit
+                      Note link
                     </button>
                     <span className="self-submit-note">
-                      Stored as candidate-submitted evidence, marked "not yet checked", elevates to Supported at most.
+                      Links are not accepted as evidence and never change a skill's state.
                     </span>
                   </div>
                 </div>

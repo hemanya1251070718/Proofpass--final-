@@ -625,7 +625,7 @@ function AppShell() {
       <footer className="site-footer">
         <div className="w">
           <span>
-            ProofPass is a prototype. All data shown is sample data and nothing you type leaves this page.
+            ProofPass is a college demo project. What you submit is sent to the ProofPass server and may be erased at any time. Recruiter candidates tagged DEMO DATA are samples.
           </span>
           <Link to="/privacy">Privacy Policy</Link>
           <Link to="/terms">Terms and Conditions</Link>

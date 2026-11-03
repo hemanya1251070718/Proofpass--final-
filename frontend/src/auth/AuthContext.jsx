@@ -5,7 +5,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { getSession, loginRequest, logoutRequest, signupRequest } from '../api/auth.js'
+import { getSession, loginRequest, logoutRequest, signupRequest, updateProfileRequest } from '../api/auth.js'
 
 const AuthContext = createContext(null)
 
@@ -43,23 +43,15 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const updateProfile = (profileUpdates) => {
-    setUser((prev) => {
-      if (!prev) return null
-      const updated = {
-        ...prev,
-        profile: {
-          ...(prev.profile || {}),
-          ...profileUpdates,
-        },
-      }
-      try {
-        localStorage.setItem('pp_prototype_session', JSON.stringify(updated))
-      } catch {
-        // Storage restricted
-      }
-      return updated
-    })
+  const updateProfile = async (profileUpdates) => {
+    // Optimistic local merge, persisted on the server. The role is never part of this request.
+    setUser((prev) => (prev ? { ...prev, profile: { ...(prev.profile || {}), ...profileUpdates } } : null))
+    try {
+      const saved = await updateProfileRequest(profileUpdates)
+      setUser(saved)
+    } catch {
+      // Keep the optimistic copy; the next session restore shows what the server has.
+    }
   }
 
   return (

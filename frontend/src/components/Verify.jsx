@@ -10,29 +10,24 @@ import VerificationChatbot from './VerificationChatbot.jsx'
 import { RM, scroller } from '../lib.js'
 import { L } from '../data.js'
 import { matchSkillsFromText } from '../data/taxonomy.js'
+import { validateIntake, SAMPLE_RESUME_TEXT, SAMPLE_TARGET_ROLE } from '../engine/index.js'
 import {
-  validateIntake,
-  SAMPLE_RESUME_TEXT,
-  SAMPLE_GITHUB_URL,
-  SAMPLE_TARGET_ROLE,
-  executeStep1Read,
-  executeStep2Propose,
-  executeStep3CheckEvidence,
-  executeStep4Authorship,
-  executeStep5AssignStates,
-  generateMicroChecks,
-  evaluateMicroCheck,
-  executeStep7RoleMatch,
-  executeStep8IssuePassport,
-  verifyPassportIntegrity,
-  simulateTamperEdit,
-} from '../engine/index.js'
+  GITHUB_URL_RE,
+  buildMicroChecks,
+  buildRoleMatch,
+  buildStepData,
+  checkIntegrity,
+  fetchQuiz,
+  issuePassport,
+  skillStatesFromPassport,
+  submitQuizAnswer,
+  verifyStoredPassport,
+} from '../engine/backendVerification.js'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { savePassport } from '../api/passports.js'
+import { normalizePassport } from '../api/passports.js'
 import { buildRoadmapsForGaps } from '../lib/roadmap.js'
 import { saveRoadmapsFromVerification, updateRoadmapStep } from '../api/roadmaps.js'
 import { getGitHubSession, logoutGitHubSession, getAuthConfig } from '../api/auth.js'
-import { CodingProfilesField } from './CodingProfilesField.jsx'
 import { attachEvidenceDetailsToPassport, buildSkillEvidenceDetails } from '../lib/evidenceDetails.js'
 import { EvidenceCard } from './EvidenceCard.jsx'
 
@@ -169,17 +164,13 @@ export default function Verify() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [authError, setAuthError] = useState(null)
   const [authAnnouncement, setAuthAnnouncement] = useState('')
-  const [zipFile, setZipFile] = useState(null)
-  const [certInput, setCertInput] = useState('')
+  const [publicUrl, setPublicUrl] = useState('')
+  const backendRef = useRef(null) // the backend's response for this run: the only source of states, hashes and scores
   const [targetRole, setTargetRole] = useState('')
   const [consentAi, setConsentAi] = useState(false)
   const [consentRepo, setConsentRepo] = useState(false)
-  const [codingProfiles, setCodingProfiles] = useState([
-    { id: 'cp_0', value: '', error: null, parsed: null },
-  ])
   const [formErrors, setFormErrors] = useState({})
 
-  const isMockMode = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_USE_MOCK === 'true')
 
   // Check active GitHub session and handle OAuth callback query parameters
   useEffect(() => {
@@ -229,34 +220,16 @@ export default function Verify() {
     }
   }, [])
 
-  const connectSampleGitHub = () => {
-    const mockUser = {
-      github_login: 'alexrivera-dev',
-      github_id: 8847291,
-      avatar_url: 'https://avatars.githubusercontent.com/u/8847291?v=4',
-      isMock: true,
-    }
-    setGithubUser(mockUser)
-    setAuthAnnouncement('Connected to demo GitHub account as @alexrivera-dev (Sample data).')
-    addLog('GitHub connected in mock mode: @alexrivera-dev (Sample data).')
-    setAuthError(null)
-  }
-
   const handleConnectGitHub = async () => {
     setAuthError(null)
-    if (isMockMode) {
-      connectSampleGitHub()
-      return
-    }
-
     try {
       const config = await getAuthConfig()
       if (!config?.github_oauth_configured) {
-        setAuthError('GitHub sign-in is not configured on this server yet. Use the sample GitHub account or upload a project ZIP.')
+        setAuthError('GitHub sign-in is not configured on this server. Use a public GitHub URL instead (Ownership Unverified).')
         return
       }
     } catch {
-      setAuthError('GitHub sign-in is not configured on this server yet. Use the sample GitHub account or upload a project ZIP.')
+      setAuthError('GitHub sign-in is not configured on this server. Use a public GitHub URL instead (Ownership Unverified).')
       return
     }
 
@@ -265,9 +238,7 @@ export default function Verify() {
   }
 
   const handleDisconnectGitHub = async () => {
-    if (!githubUser?.isMock) {
-      await logoutGitHubSession()
-    }
+    await logoutGitHubSession()
     setGithubUser(null)
     setAuthError(null)
     setAuthAnnouncement('GitHub account disconnected.')
@@ -278,14 +249,6 @@ export default function Verify() {
   useEffect(() => {
     if (user?.profile?.targetRole && !targetRole) {
       setTargetRole(user.profile.targetRole)
-    }
-    if (user?.profile?.leetcode && (!codingProfiles || !codingProfiles[0]?.value)) {
-      setCodingProfiles([
-        { id: 'cp_0', value: user.profile.leetcode, error: null, parsed: null }
-      ])
-    }
-    if (user?.profile?.certificates && !certInput) {
-      setCertInput(user.profile.certificates)
     }
     if (user?.profile?.experience && !resumeText && !resumeFile) {
       const exp = user.profile.experience
@@ -378,20 +341,12 @@ export default function Verify() {
   const handleLoadSample = () => {
     setResumeMode('paste')
     setResumeText(SAMPLE_RESUME_TEXT)
-    setEvidenceMode('github')
-    setGithubUser({
-      github_login: 'alexrivera-dev',
-      github_id: 8847291,
-      avatar_url: 'https://avatars.githubusercontent.com/u/8847291?v=4',
-      isMock: true,
-    })
     setTargetRole(SAMPLE_TARGET_ROLE)
-    setCertInput('AWS Certified Cloud Practitioner (2023)')
     setConsentAi(true)
     setConsentRepo(true)
     setFormErrors({})
     setExtractedResumeInfo(null)
-    addLog('Sample dataset loaded for Alex Rivera: Senior Full Stack TypeScript Engineer.')
+    addLog('Sample resume text and target role loaded. Evidence still comes from your own GitHub account.')
   }
 
   // Pre-extract resume file via PyMuPDF backend upon upload
@@ -432,44 +387,26 @@ export default function Verify() {
     }
   }
 
-  // STEP 0: Start Verification Form Submission
+  // STEP 0: validate the intake, then let the backend do the work.
   const handleStartVerification = async () => {
-    const validCodingProfiles = (codingProfiles || [])
-      .filter((r) => r && r.value && r.value.trim() && r.parsed && !r.error)
-      .map((r) => ({
-        platform: r.parsed.platform,
-        handle: r.parsed.handle,
-        url: r.parsed.canonicalUrl,
-      }))
-
-    // Extract any leetcode URL from coding profiles if entered for downstream adapter compatibility
-    const leetcodeProfile = validCodingProfiles.find((p) => p.platform === 'leetcode')
-    const resolvedLeetcodeUrl = leetcodeProfile ? leetcodeProfile.url : ''
-
-    const resolvedGithubUrl =
-      evidenceMode === 'github' && githubUser
-        ? `https://github.com/${githubUser.github_login}`
-        : ''
-
+    const mode = evidenceMode === 'github' && githubUser ? 'oauth' : 'url'
+    const urlOk = GITHUB_URL_RE.test(publicUrl.trim())
     const formPayload = {
       resumeText: resumeText || extractedResumeInfo?.text || '',
       resumeFile,
-      extractedSkills: extractedResumeInfo?.claimed_skills || null,
       extractedSections: extractedResumeInfo?.sections || null,
-      githubUrl: resolvedGithubUrl,
-      githubUser: evidenceMode === 'github' ? githubUser : null,
-      zipFile: evidenceMode === 'zip' ? zipFile : null,
-      certInput,
-      leetcodeUrl: resolvedLeetcodeUrl,
+      mode,
+      githubUrl: mode === 'oauth' ? `https://github.com/${githubUser.github_login}` : publicUrl.trim(),
+      githubUser: mode === 'oauth' ? githubUser : null,
       targetRole,
       consentAi,
       consentRepo,
-      extras: {
-        coding_profiles: validCodingProfiles,
-      },
     }
 
-    const { valid, errors } = validateIntake(formPayload)
+    const { valid, errors } = validateIntake({
+      ...formPayload,
+      githubUrl: mode === 'oauth' || urlOk ? formPayload.githubUrl : '',
+    })
     if (!valid) {
       setFormErrors(errors)
       addLog('Validation error: Required intake fields are incomplete or consent is missing.')
@@ -482,24 +419,38 @@ export default function Verify() {
     setStepStatus((s) => ({ ...s, 0: 'done', 1: 'running' }))
     setHighestUnlockedStep((h) => Math.max(h, 1))
     setCurrentStep(1)
-    addLog('Intake validated. Progressing to Step 1: Read.')
-
-    // Auto-execute Step 1
+    addLog(
+      mode === 'oauth'
+        ? `Intake validated. GitHub ownership is authenticated (@${githubUser.github_login}).`
+        : 'Intake validated. Public GitHub URL supplied: ownership is NOT verified, so no skill can become Verified.'
+    )
     runStep1(formPayload)
   }
 
-  // STEP 1 EXECUTION
+  // STEP 1: the backend reads the resume and GitHub, verifies every claim and seals the passport.
   const runStep1 = async (inputForm) => {
     setIsProcessing(true)
     setStepError(null)
     setStepStatus((s) => ({ ...s, 1: 'running' }))
+    const form = inputForm || intakeData
 
     try {
-      const data = await executeStep1Read(inputForm || intakeData, addLog)
-      setReadData(data)
-      setStepStatus((s) => ({ ...s, 1: data.fetchError ? 'flagged' : 'done' }))
+      addLog('Sending resume and GitHub source to the ProofPass verification engine...')
+      const resp = await issuePassport({
+        mode: form.mode,
+        resumeText: form.resumeText,
+        githubUrl: form.githubUrl,
+        targetRole: form.targetRole,
+        consent: form.consentAi && form.consentRepo,
+      })
+      const steps = buildStepData(resp, form)
+      backendRef.current = { resp, steps }
+      setReadData(steps.readData)
+      setStepStatus((s) => ({ ...s, 1: 'done' }))
       setHighestUnlockedStep((h) => Math.max(h, 2))
+      addLog(`Backend read ${steps.readData.skillsCount} resume claims and ${steps.readData.repoCount} repositories. Passport ${resp.passport_id} issued.`)
     } catch (err) {
+      backendRef.current = null
       setStepError(`Step 1 Read Error: ${err.message}`)
       setStepStatus((s) => ({ ...s, 1: 'flagged' }))
       addLog(`Error in Step 1: ${err.message}`)
@@ -508,111 +459,84 @@ export default function Verify() {
     }
   }
 
-  // STEP 2 EXECUTION
-  const runStep2 = async () => {
-    setIsProcessing(true)
-    setStepError(null)
-    setStepStatus((s) => ({ ...s, 2: 'running' }))
-
-    try {
-      const data = await executeStep2Propose(readData, addLog)
-      setProposeData(data)
-      setStepStatus((s) => ({ ...s, 2: 'done' }))
-      setHighestUnlockedStep((h) => Math.max(h, 3))
-    } catch (err) {
-      setStepError(`Step 2 Propose Error: ${err.message}`)
-      setStepStatus((s) => ({ ...s, 2: 'flagged' }))
-      addLog(`Error in Step 2: ${err.message}`)
-    } finally {
-      setIsProcessing(false)
+  // STEPS 2-4 reveal what the backend already computed; nothing is recalculated in the browser.
+  const revealStep = (n, setter, key, flaggedWhen) => async () => {
+    const steps = backendRef.current?.steps
+    if (!steps) {
+      setStepError('No verification result is available. Restart the verification.')
+      return
     }
-  }
-
-  // STEP 3 EXECUTION
-  const runStep3 = async () => {
-    setIsProcessing(true)
     setStepError(null)
-    setStepStatus((s) => ({ ...s, 3: 'running' }))
-
-    try {
-      const data = await executeStep3CheckEvidence(proposeData, readData, addLog)
-      setEvidenceData(data)
-      setStepStatus((s) => ({ ...s, 3: data.flaggedCount > 0 ? 'flagged' : 'done' }))
-      setHighestUnlockedStep((h) => Math.max(h, 4))
-    } catch (err) {
-      setStepError(`Step 3 Check Evidence Error: ${err.message}`)
-      setStepStatus((s) => ({ ...s, 3: 'flagged' }))
-      addLog(`Error in Step 3: ${err.message}`)
-    } finally {
-      setIsProcessing(false)
-    }
+    setter(steps[key])
+    setStepStatus((s) => ({ ...s, [n]: flaggedWhen?.(steps[key]) ? 'flagged' : 'done' }))
+    setHighestUnlockedStep((h) => Math.max(h, n + 1))
+    addLog(`Step ${n} loaded from the backend verification result.`)
   }
+  const runStep2 = revealStep(2, setProposeData, 'proposeData')
+  const runStep3 = revealStep(3, setEvidenceData, 'evidenceData', (d) => d.flaggedCount > 0)
+  const runStep4 = revealStep(4, setAuthorshipData, 'authorshipData')
 
-  // STEP 4 EXECUTION
-  const runStep4 = async () => {
-    setIsProcessing(true)
-    setStepError(null)
-    setStepStatus((s) => ({ ...s, 4: 'running' }))
-
-    try {
-      const data = await executeStep4Authorship(evidenceData, readData, addLog)
-      setAuthorshipData(data)
-      setStepStatus((s) => ({ ...s, 4: 'done' }))
-      setHighestUnlockedStep((h) => Math.max(h, 5))
-    } catch (err) {
-      setStepError(`Step 4 Authorship Error: ${err.message}`)
-      setStepStatus((s) => ({ ...s, 4: 'flagged' }))
-      addLog(`Error in Step 4: ${err.message}`)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  // STEP 5 EXECUTION
   const runStep5 = async () => {
+    const steps = backendRef.current?.steps
+    if (!steps) return
     setIsProcessing(true)
     setStepError(null)
-    setStepStatus((s) => ({ ...s, 5: 'running' }))
-
     try {
-      const data = await executeStep5AssignStates(authorshipData, readData, addLog)
-      setStatesData(data)
-      const initialChecks = generateMicroChecks(data.skillStates, addLog)
-      setMicroChecks(initialChecks)
+      setStatesData(steps.statesData)
+      let questions = []
+      try {
+        questions = await fetchQuiz(backendRef.current.resp.passport_id)
+      } catch (err) {
+        addLog(`Micro-check questions unavailable: ${err.message}`)
+      }
+      setMicroChecks(buildMicroChecks(questions, steps.statesData.skillStates))
       setStepStatus((s) => ({ ...s, 5: 'done' }))
       setHighestUnlockedStep((h) => Math.max(h, 6))
-    } catch (err) {
-      setStepError(`Step 5 Assign States Error: ${err.message}`)
-      setStepStatus((s) => ({ ...s, 5: 'flagged' }))
-      addLog(`Error in Step 5: ${err.message}`)
+      const c = steps.statesData.counts
+      addLog(`Step 5: backend states -> ${c.V} Verified, ${c.S} Supported, ${c.C} Claimed, ${c.X} Contradicted.`)
     } finally {
       setIsProcessing(false)
     }
   }
 
-  // STEP 6: Handle Micro-check answer submission
-  const handleAnswerMicroCheck = (skillName, answer) => {
-    const targetCheck = microChecks.find((m) => m.skill === skillName)
-    if (!targetCheck) return
+  // STEP 6: the backend grades the answer; a skill only changes state if the backend says so.
+  const handleAnswerMicroCheck = async (skillName, answer) => {
+    const target = microChecks.find((m) => m.skill === skillName)
+    if (!target || !backendRef.current) return
+    const pid = backendRef.current.resp.passport_id
+    setIsProcessing(true)
+    try {
+      const out = await submitQuizAnswer(pid, target.questionId, answer)
+      const passed = Boolean(out.results?.[0]?.passed)
+      const feedback = out.results?.[0]?.feedback || ''
+      setMicroChecks((prev) =>
+        prev.map((m) => (m.skill === skillName ? { ...m, answered: true, passed, userAnswer: answer, feedback } : m))
+      )
 
-    const evaluation = evaluateMicroCheck(targetCheck, answer, addLog)
-    
-    setMicroChecks((prev) =>
-      prev.map((m) => (m.skill === skillName ? { ...m, answered: true, passed: evaluation.passed, userAnswer: answer, feedback: evaluation.feedback } : m))
-    )
-
-    if (evaluation.passed) {
-      // Upgrade skill in statesData from 'S' to 'V'
-      setStatesData((prev) => {
-        const updated = prev.skillStates.map((s) => (s.skill === skillName ? { ...s, state: 'V', evidence: `${s.evidence}, micro-check passed` } : s))
-        const counts = {
-          V: updated.filter((s) => s.state === 'V').length,
-          S: updated.filter((s) => s.state === 'S').length,
-          C: updated.filter((s) => s.state === 'C').length,
-          X: updated.filter((s) => s.state === 'X').length,
-        }
-        return { ...prev, skillStates: updated, counts }
+      const { resp } = backendRef.current
+      const updated = { ...resp, passport: out.passport, sha256_hash: out.updated_hash, role_match_score: out.updated_role_match_score }
+      const skillStates = skillStatesFromPassport(out.passport, resp.evidence, resp.claims)
+      const counts = { V: 0, S: 0, C: 0, X: 0 }
+      skillStates.forEach((s) => {
+        counts[s.state] += 1
       })
+      const nextStates = { skillStates, counts, totalSkills: skillStates.length }
+      backendRef.current = {
+        resp: updated,
+        steps: { ...backendRef.current.steps, statesData: nextStates, roleMatchData: buildRoleMatch(out.passport, skillStates) },
+      }
+      setStatesData(nextStates)
+      addLog(`Micro-check for ${skillName}: ${passed ? 'accepted' : 'not accepted'} by the backend.`)
+    } catch (err) {
+      setMicroChecks((prev) =>
+        prev.map((m) =>
+          m.skill === skillName
+            ? { ...m, answered: true, passed: false, userAnswer: answer, feedback: `The backend could not grade this answer: ${err.message}` }
+            : m
+        )
+      )
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -623,61 +547,29 @@ export default function Verify() {
     runStep7()
   }
 
-  // STEP 7 EXECUTION
+  // STEP 7: backend role match.
   const runStep7 = async () => {
-    setIsProcessing(true)
-    setStepError(null)
-    setStepStatus((s) => ({ ...s, 7: 'running' }))
-
-    try {
-      const data = executeStep7RoleMatch(statesData.skillStates, intakeData?.targetRole || 'Senior Full Stack TypeScript Engineer', addLog)
-      setRoleMatchData(data)
-      setStepStatus((s) => ({ ...s, 7: 'done' }))
-      setHighestUnlockedStep((h) => Math.max(h, 8))
-    } catch (err) {
-      setStepError(`Step 7 Role Match Error: ${err.message}`)
-      setStepStatus((s) => ({ ...s, 7: 'flagged' }))
-      addLog(`Error in Step 7: ${err.message}`)
-    } finally {
-      setIsProcessing(false)
-    }
+    if (!backendRef.current) return
+    setRoleMatchData(backendRef.current.steps.roleMatchData)
+    setStepStatus((s) => ({ ...s, 7: 'done' }))
+    setHighestUnlockedStep((h) => Math.max(h, 8))
   }
 
-  // STEP 8 EXECUTION
+  // STEP 8: show the passport exactly as the backend sealed and stored it.
   const runStep8 = async () => {
+    if (!backendRef.current) return
     setIsProcessing(true)
     setStepError(null)
-    setStepStatus((s) => ({ ...s, 8: 'running' }))
-
     try {
-      const candidateName = user?.name || 'Alex Rivera'
-      const data = await executeStep8IssuePassport(
-        statesData.skillStates,
-        intakeData?.targetRole || 'Senior Full Stack TypeScript Engineer',
-        candidateName,
-        addLog
-      )
-
-      // Attach rich evidenceDetails at passport issue/save time (never inside engine)
-      const enrichedPassport = attachEvidenceDetailsToPassport(data.passport, {
-        readData,
-        evidenceData,
-        authorshipData,
-        statesData,
-        intakeData,
-        user,
-      })
-      const finalData = { ...data, passport: enrichedPassport }
-
-      setPassportData(finalData)
+      const { resp } = backendRef.current
+      const stored = await fetch(`/api/v1/passports/${encodeURIComponent(resp.passport_id)}`, { credentials: 'same-origin' })
+      if (!stored.ok) throw new Error('The sealed passport could not be read back from the server.')
+      const detail = await stored.json()
+      const passport = normalizePassport({ ...detail.passport, ...detail })
+      passport.candidateName = user?.name
+      setPassportData({ passport, hash: detail.sha256_hash, tampered: false, sealedPayload: detail.passport })
       setStepStatus((s) => ({ ...s, 8: 'done' }))
-      addLog('Verification pipeline completed. Passport issued and sealed.')
-      try {
-        await savePassport(enrichedPassport, user?.id)
-        addLog('Cryptographic passport saved to user vault.')
-      } catch (saveErr) {
-        console.warn('Failed saving passport:', saveErr)
-      }
+      addLog('Passport issued and sealed by the backend. Read back from the database.')
     } catch (err) {
       setStepError(`Step 8 Issue Passport Error: ${err.message}`)
       setStepStatus((s) => ({ ...s, 8: 'flagged' }))
@@ -687,21 +579,39 @@ export default function Verify() {
     }
   }
 
-  // Verify passport hash
+  // Server-side integrity check of the stored passport.
   const handleVerifyHash = async () => {
     if (!passportData) return
-    const res = await verifyPassportIntegrity(passportData.passport.skills, passportData.hash)
-    setHashCheckResult(res)
-    addLog(`Hash Check: ${res.message}`)
+    setHashCheckResult({ valid: null, message: 'Checking integrity on the server...' })
+    try {
+      const res = await verifyStoredPassport(passportData.passport.id)
+      setHashCheckResult({ valid: res.valid, message: res.message })
+      addLog(`Hash Check: ${res.message}`)
+    } catch (err) {
+      setHashCheckResult({ valid: false, message: `Check failed: ${err.message}` })
+    }
   }
 
-  // Simulate an edit tamper
+  // Tamper demonstration: edit a COPY of the sealed payload and ask the backend whether the seal still matches.
   const handleSimulateTamper = async () => {
-    if (!passportData) return
-    const tampered = await simulateTamperEdit(passportData.passport.skills)
-    const res = await verifyPassportIntegrity(tampered.tamperedSkills, passportData.hash)
-    setHashCheckResult(res)
-    addLog(`Tamper Simulation: Altered first skill state. Hash recomputed: ${tampered.newHash.slice(0, 16)}... != original. Tamper detected.`)
+    if (!passportData?.sealedPayload) return
+    setHashCheckResult({ valid: null, message: 'Recomputing the hash of an edited copy on the server...' })
+    try {
+      const copy = JSON.parse(JSON.stringify(passportData.sealedPayload))
+      if (copy.skills?.length) {
+        copy.skills[0].claim_state = copy.skills[0].claim_state === 'Verified' ? 'Supported' : 'Verified'
+      }
+      const res = await checkIntegrity(copy, passportData.hash)
+      setHashCheckResult({
+        valid: res.valid,
+        message: res.valid
+          ? 'Unexpected: the edited copy still matches.'
+          : 'Hash mismatch. The edited copy no longer matches the sealed hash. Tamper detected.',
+      })
+      addLog(`Tamper Simulation: edited a copy of the first skill; recomputed ${res.computed_hash.slice(0, 16)}... != sealed ${passportData.hash.slice(0, 16)}...`)
+    } catch (err) {
+      setHashCheckResult({ valid: false, message: `Check failed: ${err.message}` })
+    }
   }
 
   // Stepper navigation
@@ -724,8 +634,7 @@ export default function Verify() {
     resumeText,
     resumeFile,
     githubUser: evidenceMode === 'github' ? githubUser : null,
-    githubUrl: evidenceMode === 'github' && githubUser ? `https://github.com/${githubUser.github_login}` : '',
-    zipFile: evidenceMode === 'zip' ? zipFile : null,
+    githubUrl: evidenceMode === 'url' && GITHUB_URL_RE.test(publicUrl.trim()) ? publicUrl.trim() : '',
     targetRole,
     consentAi,
     consentRepo,
@@ -910,14 +819,14 @@ export default function Verify() {
                       className={`mode-btn ${evidenceMode === 'github' ? 'on' : ''}`}
                       onClick={() => setEvidenceMode('github')}
                     >
-                      GitHub Profile URL
+                      Connect GitHub (verified ownership)
                     </button>
                     <button
                       type="button"
-                      className={`mode-btn ${evidenceMode === 'zip' ? 'on' : ''}`}
-                      onClick={() => setEvidenceMode('zip')}
+                      className={`mode-btn ${evidenceMode === 'url' ? 'on' : ''}`}
+                      onClick={() => setEvidenceMode('url')}
                     >
-                      Project ZIP Upload
+                      Public GitHub URL (Ownership Unverified)
                     </button>
                   </div>
 
@@ -948,20 +857,6 @@ export default function Verify() {
                             <span style={{ fontSize: '0.9rem', color: 'var(--ink)', fontWeight: 500 }}>
                               Connected as @{githubUser.github_login}
                             </span>
-                            {githubUser.isMock && (
-                              <span
-                                style={{
-                                  fontSize: '0.72rem',
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  background: 'var(--surface)',
-                                  color: 'var(--muted)',
-                                  border: '1px solid var(--line)',
-                                }}
-                              >
-                                Sample data
-                              </span>
-                            )}
                           </div>
                           <button
                             type="button"
@@ -1023,24 +918,6 @@ export default function Verify() {
                               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                                 <button
                                   type="button"
-                                  onClick={connectSampleGitHub}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'inherit',
-                                    textDecoration: 'underline',
-                                    cursor: 'pointer',
-                                    fontSize: '0.82rem',
-                                    padding: '4px 8px',
-                                    minHeight: '44px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                  }}
-                                >
-                                  Use sample GitHub account
-                                </button>
-                                <button
-                                  type="button"
                                   onClick={handleConnectGitHub}
                                   style={{
                                     background: 'none',
@@ -1064,44 +941,31 @@ export default function Verify() {
                       )}
                     </div>
                   ) : (
-                    <div className="file-input-wrapper">
+                    <div style={{ marginTop: '8px' }}>
                       <input
-                        type="file"
-                        accept=".zip"
-                        onChange={(e) => setZipFile(e.target.files[0])}
+                        type="url"
+                        className="form-input"
+                        placeholder="https://github.com/your-username"
+                        value={publicUrl}
+                        onChange={(e) => setPublicUrl(e.target.value)}
+                        aria-describedby="url-ownership-note"
                       />
-                      {zipFile && <span className="m file-hint">Selected: {zipFile.name}</span>}
+                      <span id="url-ownership-note" className="form-hint m" style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: 4, display: 'block' }}>
+                        Ownership of this URL is not proven. The passport will be labelled "Ownership Unverified" and no skill can reach Verified.
+                      </span>
                     </div>
                   )}
                   {formErrors.evidence && <p className="field-error">{formErrors.evidence}</p>}
                 </div>
 
-                {/* 3. Coding Profiles Input */}
-                <CodingProfilesField
-                  value={codingProfiles}
-                  onChange={setCodingProfiles}
-                  label="3. Coding Profiles (Optional)"
-                />
-
-                {/* 4. Optional Certificates */}
-                <div className="form-group">
-                  <label className="form-label">4. Certificates or Credentials (Optional)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="Credential links or issuing organization titles (e.g. AWS SAA, CKAD)"
-                    value={certInput}
-                    onChange={(e) => setCertInput(e.target.value)}
-                  />
-                  <span className="form-hint m" style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: 4, display: 'block' }}>
-                    Sample evidence for cloud and framework certifications (capped at 60 / Supported).
-                  </span>
-                </div>
+                <p className="form-hint m" style={{ fontSize: '0.8rem', opacity: 0.8, margin: '0 0 12px' }}>
+                  Coding-platform profiles, certificates and ZIP uploads are not verified by the backend, so they are not accepted as evidence.
+                </p>
 
                 {/* 5. Target Role */}
                 <div className="form-group">
                   <label className="form-label">
-                    5. Target Role or Job Description <span className="req">*</span>
+                    3. Target Role or Job Description <span className="req">*</span>
                   </label>
                   <input
                     type="text"
@@ -1160,7 +1024,7 @@ export default function Verify() {
                   <div className="io-box">
                     <span className="io-tag m">INPUTS</span>
                     <p><strong>Resume:</strong> {intakeData?.resumeFile?.name || 'Pasted text input'}</p>
-                    <p><strong>Evidence:</strong> {intakeData?.githubUrl || intakeData?.zipFile?.name}</p>
+                    <p><strong>Evidence:</strong> {intakeData?.githubUrl} {intakeData?.mode === 'oauth' ? '(GitHub ownership verified)' : '(Ownership Unverified)'}</p>
                     <p><strong>Target Role:</strong> {intakeData?.targetRole}</p>
                   </div>
                   <div className="io-box">
@@ -1169,7 +1033,6 @@ export default function Verify() {
                     <p><strong>Claimed Skills Identified:</strong> {readData.skillsCount}</p>
                     <p><strong>Repositories Indexed:</strong> {readData.repoCount}</p>
                     <p><strong>Code Files Inspected:</strong> {readData.fileCount}</p>
-                    <p><strong>Total Lines of Code:</strong> {readData.totalLinesRead.toLocaleString()}</p>
                   </div>
                 </div>
 
@@ -1456,11 +1319,7 @@ export default function Verify() {
                       {statesData?.skillStates.map((s) => {
                         const isExpanded = !!expandedStep5Skills[s.skill]
                         const details = buildSkillEvidenceDetails(s, {
-                          readData,
-                          evidenceData,
-                          authorshipData,
-                          statesData,
-                          intakeData,
+                          evidence: backendRef.current?.resp?.evidence,
                         })
 
                         return (
@@ -1831,7 +1690,7 @@ export default function Verify() {
                       <span className="m hash-label">SHA-256 PASSPORT DIGEST:</span>
                       <code className="m">{passportData.hash}</code>
                       <p style={{ margin: '8px 0 0', fontSize: '0.78rem', color: 'var(--muted)', lineHeight: '1.4' }}>
-                        Excerpts and confidence are display details. The seal covers skill, state and evidence text.
+                        The seal covers the entire sealed passport payload (skills, states, evidence chain, role match, ownership). Excerpts shown here are display details.
                       </p>
                     </div>
 
@@ -1845,7 +1704,7 @@ export default function Verify() {
                     </div>
 
                     {hashCheckResult && (
-                      <div className={`hash-feedback m ${hashCheckResult.valid ? 'ok' : 'err'}`} role="status">
+                      <div className={`hash-feedback m ${hashCheckResult.valid === true ? 'ok' : hashCheckResult.valid === false ? 'err' : ''}`} role="status">
                         {hashCheckResult.message}
                       </div>
                     )}
@@ -1856,12 +1715,14 @@ export default function Verify() {
                 <div className="resume-details-card glass" style={{ padding: '20px', margin: '24px 0', borderRadius: '12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '14px' }}>
                     <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Resume details &amp; extracted scope</h3>
-                    <span className="chip sm S">Sample evidence</span>
+                    <span className={`chip sm ${passportData.passport.ownershipVerified ? 'V' : 'S'}`}>
+                      {passportData.passport.ownershipVerified ? 'GitHub ownership verified' : 'Ownership Unverified'}
+                    </span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', fontSize: '0.88rem' }}>
                     <div>
                       <span className="k m" style={{ display: 'block', fontSize: '0.72rem', opacity: 0.7 }}>PARSED NAME</span>
-                      <strong>{passportData.passport.candidateName || user?.name || 'Alex Rivera'}</strong>
+                      <strong>{passportData.passport.candidateName || user?.name}</strong>
                     </div>
                     <div>
                       <span className="k m" style={{ display: 'block', fontSize: '0.72rem', opacity: 0.7 }}>TARGET ROLE</span>
@@ -1916,12 +1777,8 @@ export default function Verify() {
                               Array.isArray(s.evidenceDetails) && s.evidenceDetails.length > 0
                                 ? s.evidenceDetails
                                 : buildSkillEvidenceDetails(s, {
-                                    readData,
-                                    evidenceData,
-                                    authorshipData,
-                                    statesData,
-                                    intakeData,
                                     passport: passportData.passport,
+                                    evidence: backendRef.current?.resp?.evidence,
                                   })
 
                             return (

@@ -27,7 +27,10 @@ from backend.api.batch import (
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    c = TestClient(app)
+    from tests.auth_helpers import register
+    register(c, "recruiter")  # batch ingestion is recruiter-only
+    return c
 
 
 # ---------------------------------------------------------------------------

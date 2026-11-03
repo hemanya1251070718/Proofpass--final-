@@ -22,12 +22,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Explicit absolute imports - no try/except hiding failures
 from backend.api.routes import router as api_v1_router
-from backend.database import init_db, DATABASE_URL
+from backend.database import init_db, DATABASE_URL, warn_if_ephemeral
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initializes database tables on application startup and logs environment details."""
+    warn_if_ephemeral()
     init_db()
     resolved_db = DATABASE_URL
     route_count = len(app.openapi().get("paths", {}))
@@ -55,6 +56,10 @@ if not cors_raw or not cors_raw.strip():
     cors_raw = "http://localhost:5173,http://127.0.0.1:5173"
 
 origins = [o.strip() for o in cors_raw.split(",") if o.strip()]
+if "*" in origins:
+    # A wildcard combined with credentials would let any site make credentialed requests.
+    logger.error("CORS_ORIGINS contains '*': ignoring it; credentialed CORS requires explicit origins.")
+    origins = [o for o in origins if o != "*"]
 
 app.add_middleware(
     CORSMiddleware,

@@ -319,13 +319,73 @@ def import_courses(csv_path: Path = DEFAULT_COURSE_CSV, session: Optional[Sessio
     return stats
 
 
+MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024
+
+
+def download_csv(url: str, dest: Path, expected_sha256: Optional[str] = None) -> Path:
+    """Fetch the dataset from an operator-configured https URL (e.g. private storage). Size-capped, optional checksum."""
+    import hashlib
+
+    import httpx
+
+    if not url.lower().startswith("https://"):
+        raise ValueError("COURSE_CSV_URL must be an https:// URL.")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    digest, size = hashlib.sha256(), 0
+    tmp = dest.with_suffix(".part")
+    with httpx.stream("GET", url, timeout=60.0, follow_redirects=True) as resp:
+        resp.raise_for_status()
+        with open(tmp, "wb") as fh:
+            for chunk in resp.iter_bytes():
+                size += len(chunk)
+                if size > MAX_DOWNLOAD_BYTES:
+                    tmp.unlink(missing_ok=True)
+                    raise ValueError("Dataset download exceeds the 50 MB limit.")
+                digest.update(chunk)
+                fh.write(chunk)
+    if expected_sha256 and digest.hexdigest().lower() != expected_sha256.strip().lower():
+        tmp.unlink(missing_ok=True)
+        raise ValueError("Downloaded dataset does not match COURSE_CSV_SHA256.")
+    tmp.replace(dest)
+    return dest
+
+
+def ensure_catalogue(csv_path: Path = DEFAULT_COURSE_CSV) -> Optional[ImportStats]:
+    """Container start-up hook: make the course catalogue available if the dataset can be found.
+
+    Uses the CSV baked into the image when present, else downloads COURSE_CSV_URL. Never raises: the app must
+    still start (recommendations then report an empty catalogue).
+    """
+    import os
+
+    csv_path = Path(csv_path)
+    try:
+        if not csv_path.is_file():
+            url = (os.getenv("COURSE_CSV_URL") or "").strip()
+            if not url:
+                logger.warning("Course dataset not found at %s and COURSE_CSV_URL is not set: course recommendations will be empty.", csv_path)
+                return None
+            download_csv(url, csv_path, os.getenv("COURSE_CSV_SHA256"))
+            logger.info("Downloaded course dataset from COURSE_CSV_URL.")
+        stats = import_courses(csv_path)
+        logger.info("Course catalogue ready: %d courses.", stats.technical)
+        return stats
+    except Exception as exc:  # noqa: BLE001 - start-up must not fail because of the optional dataset
+        logger.error("Course catalogue import skipped: %s", exc)
+        return None
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Import the Coursera CSV into SQLite (idempotent).")
     ap.add_argument("--csv", default=str(DEFAULT_COURSE_CSV))
     ap.add_argument("--dry-run", action="store_true", help="parse and report without writing")
+    ap.add_argument("--startup", action="store_true", help="container start-up mode: download COURSE_CSV_URL if needed, never fail")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     init_db()
+    if args.startup:
+        ensure_catalogue(Path(args.csv))
+        return 0
     try:
         stats = import_courses(Path(args.csv), dry_run=args.dry_run)
     except (OSError, ValueError) as exc:

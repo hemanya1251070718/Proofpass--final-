@@ -550,65 +550,15 @@ class CommitVerificationRequest(BaseModel):
     lines_authored: Optional[int] = Field(120, description="Lines authored by candidate")
 
 
-@radar_router.post("/passports/verify-commit")
-def verify_and_stamp_commit_evidence(
-    payload: CommitVerificationRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Cryptographically validates commit authorship and permanently stamps verified status into the passport.
-    Updates proofpass.db SQLite database.
-    """
-    passport = db.query(PassportRecord).filter(PassportRecord.passport_id == payload.passport_id).first()
-
-    # Generate permanent SHA-256 seal
-    seal_content = f"{payload.passport_id}:{payload.skill}:{payload.commit_sha}:{payload.repo_url}"
-    sha256_seal = hashlib.sha256(seal_content.encode("utf-8")).hexdigest()
-
-    verified_evidence = {
-        "skill": payload.skill,
-        "state": "V",
-        "verification_source": "GitHub Blame Evidence",
-        "commit_sha": payload.commit_sha,
-        "repo_url": payload.repo_url,
-        "commit_message": payload.commit_message,
-        "lines_authored": payload.lines_authored,
-        "sha256_seal": sha256_seal,
-        "verified_at": datetime.utcnow().isoformat()
-    }
-
-    if passport:
-        try:
-            # Parse existing skills JSON
-            claims = json.loads(passport.claims_json) if passport.claims_json else []
-            updated = False
-            for c in claims:
-                if c.get("skill", "").lower() == payload.skill.lower():
-                    c["state"] = "V"
-                    c["claim_state"] = "Verified"
-                    c["sha256_seal"] = sha256_seal
-                    c["evidence"] = f"Verified in commit {payload.commit_sha[:8]} on {payload.repo_url}"
-                    updated = True
-                    break
-            if not updated:
-                claims.append(verified_evidence)
-
-            passport.claims_json = json.dumps(claims)
-            passport.role_match_score = min(98.0, passport.role_match_score + 14.0)
-            db.commit()
-            db.refresh(passport)
-        except Exception as exc:
-            logger.error("Failed to update passport database: %s", exc)
-
-    return {
-        "success": True,
-        "status": "CRYPTOGRAPHICALLY_VERIFIED",
-        "skill": payload.skill,
-        "sha256_seal": sha256_seal,
-        "new_match_score": 94.0,
-        "evidence": verified_evidence,
-        "persisted": True
-    }
+@radar_router.post("/passports/verify-commit", include_in_schema=False)
+def verify_and_stamp_commit_evidence(payload: CommitVerificationRequest):
+    """DISABLED. This endpoint used to mark skills Verified from a client-supplied commit SHA without
+    contacting GitHub. A skill can only become Verified through the backend verification pipeline
+    (/verify) followed by a passed micro-check, so this explicitly reports "not verified"."""
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Commit stamping is disabled. Skills are verified only by the backend verification pipeline.",
+    )
 
 
 # ---------------------------------------------------------------------------

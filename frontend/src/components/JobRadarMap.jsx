@@ -851,34 +851,7 @@ export default function JobRadarMap() {
     setProofGapSigned(false)
   }
 
-  // Sign proof-gap commit evidence and boost skill match score
-  const handleSignProofGapEvidence = async () => {
-    if (!proofGapItem) return
-    setProofGapSigned(true)
-
-    try {
-      await fetch('/api/v1/passports/verify-commit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          passport_id: passport?.id || passport?.passport_id || 'pass-001',
-          skill: proofGapItem.skill,
-          repo_url: proofGapItem.evidence.repoName,
-          commit_sha: proofGapItem.evidence.commitHash,
-          commit_message: proofGapItem.evidence.commitMessage,
-          lines_authored: proofGapItem.evidence.linesAuthored
-        })
-      })
-    } catch (err) {
-      console.warn('Backend offline, fallback to local cryptographic signing:', err)
-    }
-
-    setTimeout(() => {
-      setExtraVerifiedSkills((prev) => new Set([...prev, proofGapItem.skill.toLowerCase()]))
-      setProofGapItem(null)
-      setProofGapSigned(false)
-    }, 1500)
-  }
+  // Skill states are decided only by the backend verification engine. The Proof-Gap drawer never changes a state.
 
   // Dispatch application modal
   const handleApply = (comp) => {
@@ -1683,13 +1656,13 @@ export default function JobRadarMap() {
         open={Boolean(proofGapItem)}
         onClose={() => setProofGapItem(null)}
         placement="right"
-        badge="CRYPTOGRAPHIC PROOF-GAP · DEMO EVIDENCE"
+        badge="SKILL GAP · ILLUSTRATIVE EXAMPLE"
         title={`Bridge Skill Gap: ${proofGapItem?.skill || ''}`}
       >
         {proofGapItem && (
           <>
             <p className="ios-modal-desc">
-              ProofPass inspected your linked Git repositories and identified commit authorship matching this employer requirement.
+              This employer requires a skill that is not Verified on your passport. The commit below is an illustrative example only, not your code. To close the gap, run Verify with a repository that shows this skill and pass the micro-check.
             </p>
 
             <div className="proofgap-commit-card">
@@ -1701,7 +1674,7 @@ export default function JobRadarMap() {
                 Commit {proofGapItem.evidence.commitHash}: {proofGapItem.evidence.commitMessage}
               </div>
               <div style={{ color: '#38bdf8', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>Git Blame Verified: {proofGapItem.evidence.linesAuthored} lines authored by candidate</span>
+                <span>Example of the evidence the engine looks for</span>
                 <span className="jr-simulated-tag">Simulated</span>
               </div>
 
@@ -1710,30 +1683,14 @@ export default function JobRadarMap() {
               </div>
             </div>
 
-            {proofGapSigned ? (
-              <div className="proofgap-success-banner" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <JrLottie animationData={LOTTIE_SUCCESS_CHECK} loop={false} width={28} height={28} />
-                <span>Commit Evidence Cryptographically Stamped into Passport! Skill Verified!</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  className="radar-action-btn primary"
-                  style={{ flex: 1 }}
-                  onClick={handleSignProofGapEvidence}
-                >
-                  🔐 Sign Commit Evidence (SHA-256) & Boost Match
-                </button>
-                <button
-                  type="button"
-                  className="radar-secondary-link"
-                  onClick={() => setProofGapItem(null)}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <a href="/verify" className="radar-action-btn primary" style={{ flex: 1, textAlign: 'center' }}>
+                Verify this skill
+              </a>
+              <button type="button" className="radar-secondary-link" onClick={() => setProofGapItem(null)}>
+                Close
+              </button>
+            </div>
           </>
         )}
       </JrSheet>
