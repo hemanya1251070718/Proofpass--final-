@@ -188,7 +188,7 @@
 }
 
 /* Node States:
-   - current = filled orange with a soft glow
+   - current = filled orange
    - done = green ring with a small check pin
    - locked = dashed ring with a small lock pin
    - previewed = orange ring
@@ -197,7 +197,7 @@
   background: var(--accent);
   color: var(--on-accent);
   border: 2px solid var(--accent);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 70%, transparent), 0 4px 12px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .node-done {
@@ -218,7 +218,7 @@
   border: 2px solid var(--accent);
   background: var(--surface);
   color: var(--accent);
-  box-shadow: 0 0 14px var(--accent-tint), 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
 }
 
 .half-node-pin {
@@ -350,7 +350,7 @@
   background: var(--accent);
   color: var(--on-accent);
   border: 1.5px solid var(--accent);
-  box-shadow: 0 0 10px var(--accent-tint);
+  box-shadow: none;
 }
 
 .chip-done {
@@ -466,120 +466,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
-  overflow: hidden;
-}
-
-.vb-blobs {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.vb-blob {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  will-change: transform;
-}
-
-:root, :root[data-theme='light'] {
-  --blob-1: rgba(232, 128, 63, 0.22);
-  --blob-2: rgba(246, 215, 176, 0.35);
-  --blob-3: rgba(181, 70, 16, 0.15);
-  --dot-color: rgba(29, 26, 23, 0.22);
-  --sun-shaft-color: rgba(255, 238, 205, 0.32);
-}
-
-:root[data-theme='dark'] {
-  --blob-1: rgba(232, 128, 63, 0.18);
-  --blob-2: rgba(181, 70, 16, 0.15);
-  --blob-3: rgba(140, 50, 10, 0.12);
-  --dot-color: rgba(243, 236, 223, 0.22);
-  --sun-shaft-color: transparent;
-}
-
-.vb-blob-1 {
-  width: 550px;
-  height: 550px;
-  left: 10%;
-  top: 15%;
-  background: radial-gradient(circle, var(--blob-1) 0%, color-mix(in srgb, var(--blob-1) 60%, transparent) 40%, transparent 70%);
-  animation: blobDrift1 26s infinite alternate ease-in-out;
-}
-
-.vb-blob-2 {
-  width: 600px;
-  height: 600px;
-  right: 8%;
-  bottom: 12%;
-  background: radial-gradient(circle, var(--blob-2) 0%, color-mix(in srgb, var(--blob-2) 60%, transparent) 40%, transparent 70%);
-  animation: blobDrift2 32s infinite alternate ease-in-out;
-}
-
-.vb-blob-3 {
-  width: 450px;
-  height: 450px;
-  left: 45%;
-  top: 45%;
-  background: radial-gradient(circle, var(--blob-3) 0%, color-mix(in srgb, var(--blob-3) 60%, transparent) 40%, transparent 70%);
-  animation: blobDrift3 28s infinite alternate ease-in-out;
-}
-
-@keyframes blobDrift1 {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(60px, -40px) scale(1.12); }
-  100% { transform: translate(-30px, 50px) scale(0.92); }
-}
-
-@keyframes blobDrift2 {
-  0% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-70px, -50px) scale(1.08); }
-  100% { transform: translate(40px, 30px) scale(0.95); }
-}
-
-@keyframes blobDrift3 {
-  0% { transform: translate(0, 0) scale(0.95); }
-  50% { transform: translate(-40px, 60px) scale(1.1); }
-  100% { transform: translate(50px, -30px) scale(1); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .vb-blob { animation: none !important; }
-}
-
-/* Light shaft in sunlight */
-.vb-sunlight-shaft {
-  position: absolute;
-  top: -20%;
-  bottom: -20%;
-  width: 38vw;
-  min-width: 360px;
-  left: 5%;
-  background: linear-gradient(115deg, transparent 0%, var(--sun-shaft-color) 45%, var(--sun-shaft-color) 55%, transparent 100%);
-  transform: translate3d(calc(var(--step-progress, 0) * 45vw), 0, 0) rotate(-15deg);
-  filter: blur(45px);
-  pointer-events: none;
-  transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-  opacity: 0.9;
-}
-
-/* Dot grid masked by cursor position */
-.vb-dot-grid {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(var(--dot-color) 1.2px, transparent 1.2px);
-  background-size: 24px 24px;
-  -webkit-mask: radial-gradient(220px circle at var(--px, -500px) var(--py, -500px), black 0%, transparent 80%);
-  mask: radial-gradient(220px circle at var(--px, -500px) var(--py, -500px), black 0%, transparent 80%);
-  opacity: 0.75;
-}
-
-.vb-particle-canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  z-index: -1;
 }
 
 /* LockedStage Chained Card */

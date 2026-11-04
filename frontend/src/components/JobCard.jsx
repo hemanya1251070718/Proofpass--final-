@@ -26,7 +26,6 @@ export default function JobCard({
 }) {
   const panelId = useId()
   const [imgFailed, setImgFailed] = useState(false)
-  const isSmb = comp.tier === 'smb'
   const isRemote = comp.workMode === 'Remote'
 
   // Commit Skill Coverage metrics
@@ -51,7 +50,8 @@ export default function JobCard({
 
   return (
     <article
-      className={`jr-card ${isSelected ? 'is-selected' : ''} ${isExpanded ? 'is-expanded' : ''} ${isSmb ? 'is-smb' : ''}`}
+      data-radar-card={comp.id}
+      className={`jr-card ${isSelected ? 'is-selected' : ''} ${isExpanded ? 'is-expanded' : ''}`}
       style={{ animationDelay: staggerDelay }}
       onClick={() => onSelect?.(comp)}
     >
@@ -69,8 +69,8 @@ export default function JobCard({
         }}
       >
         <div className="jr-card__identity">
-          <div className="radar-entity-frame">
-            {!imgFailed ? (
+          {!imgFailed && (
+            <div className="radar-entity-frame">
               <img
                 src={getCompanyLogo(comp.domain)}
                 alt={`${comp.name} logo`}
@@ -81,18 +81,8 @@ export default function JobCard({
                 className="radar-entity-logo"
                 onError={() => setImgFailed(true)}
               />
-            ) : (
-              <div
-                className="radar-avatar-badge"
-                style={{
-                  background: `${comp.badgeColor}25`,
-                  color: comp.badgeColor
-                }}
-              >
-                {comp.logo}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="jr-card__titles">
             <div className="jr-card__name-row">
@@ -102,14 +92,6 @@ export default function JobCard({
                   <path fillRule="evenodd" d="M8 0c-.69 0-1.84.04-2.88.31-1.03.27-2.07.72-2.9 1.48-.42.38-.72.84-.94 1.34C1.06 3.63 1 4.2 1 4.8c0 4.24 2.87 8.35 6.38 10.95.37.28.87.28 1.24 0C12.13 13.15 15 9.04 15 4.8c0-.6-.06-1.17-.28-1.67-.22-.5-.52-.96-.94-1.34-.83-.76-1.87-1.21-2.9-1.48C9.84.04 8.69 0 8 0zm2.78 5.72a.75.75 0 0 0-1.06-1.06L6.5 7.88 5.28 6.66a.75.75 0 0 0-1.06 1.06l1.75 1.75c.3.3.77.3 1.06 0l3.75-3.75z" />
                 </svg>
               </span>
-              {comp.smbFastTrack && (
-                <span className="jr-fasttrack-tag" title="Fast-Track: Direct technical review, skips resume filters">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  </svg>
-                  <span>DIRECT REVIEW</span>
-                </span>
-              )}
             </div>
             <div className="jr-card__role-title">{comp.roleTitle}</div>
             <div className="jr-card__meta">

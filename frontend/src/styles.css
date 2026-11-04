@@ -12,10 +12,10 @@
   --surface-2: #efe8da;
   --ink: #1d1a17;
   --muted: #5c554b;
-  --faint: #857c6e;
+  --faint: #665e51;
   --line: rgba(29, 26, 23, 0.20);
   --line-soft: rgba(29, 26, 23, 0.12);
-  --accent: #b54610;
+  --accent: #ad420f;
   --accent-hover: #963908;
   --on-accent: #fff8ee;
   --accent-tint: rgba(181, 70, 16, 0.1);
@@ -23,9 +23,9 @@
   --panel-ink: #f3ecdf;
   --panel-muted: #a99f91;
   --panel-line: rgba(243, 236, 223, 0.18);
-  --st-v: #2a7550;
-  --st-s: #b54610;
-  --st-c: #6b6457;
+  --st-v: #1f6641;
+  --st-s: #9c3b0c;
+  --st-c: #595347;
   --st-x: #b3261e;
   --steel-hi: #e8ebed;
   --steel-mid: #9ea8b0;
@@ -118,7 +118,9 @@ html.lenis, html.lenis body { height: auto; }
 
 *, *::before, *::after { box-sizing: inherit; }
 * { margin: 0; }
-html { scroll-padding-top: 88px; }
+html { scroll-padding-top: 88px; scroll-behavior: smooth; }
+/* Lenis drives scrolling itself and only sets lenis-smooth mid-scroll, so native smoothing must stay off under it */
+html.lenis { scroll-behavior: auto !important; }
 
 body {
   background: var(--bg);
@@ -1401,6 +1403,32 @@ textarea::placeholder {
   100% {
     background-color: transparent !important;
     outline: 2px solid transparent;
+  }
+}
+
+/* ---------- Light theme contrast ---------- */
+/* Faded labels read fine on dark but fall below contrast on the light surfaces */
+:root[data-theme='light'] .k.m[style*='opacity'],
+:root[data-theme='light'] .form-hint { opacity: 1 !important; }
+:root[data-theme='light'] .log-count-pill { background: var(--surface-2); color: var(--ink); }
+
+/* ---------- Interaction timing ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  /* Zero specificity: only fills in elements with no transition of their own.
+     Leaves transform and opacity out so GSAP tweens on these elements stay in sync. */
+  :where(a, button, summary, input, select, textarea, [role='tab'], [role='button'], .glass, .table-card, .jr-card, .radar-company-card, .radar-candidate-card, .role-match-card, .compare-picker-card, .lb-state-card, .leaderboard-item, .lrow, .srow, .clickable-row) {
+    transition: color 180ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+  }
+
+  /* Same timing for those that already declare a transition. Important because page stylesheets load after this one. */
+  :is(a, button, summary, input, select, textarea, [role='tab'], [role='button'], .glass, .table-card, .jr-card, .radar-company-card, .radar-candidate-card, .role-match-card, .compare-picker-card, .lb-state-card, .leaderboard-item, .lrow, .srow, .clickable-row) {
+    transition-duration: 180ms !important;
+    transition-timing-function: ease-out !important;
+  }
+
+  .b::before {
+    transition-duration: 180ms !important;
+    transition-timing-function: ease-out !important;
   }
 }
 

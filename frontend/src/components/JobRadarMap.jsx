@@ -12,7 +12,7 @@
  * 5. Clearbit Corporate Logo API - Verified corporate branding resolution
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useAuth } from '../auth/AuthContext.jsx'
@@ -34,8 +34,31 @@ import JobCard, { JobCardSkeleton } from './JobCard.jsx'
 import MatchRing from './MatchRing.jsx'
 import gsap from 'gsap'
 import JrLottie, { LOTTIE_RADAR_SONAR, LOTTIE_SUCCESS_CHECK } from './JrLottie.jsx'
-import JrThreeHologram from './JrThreeHologram.jsx'
 import RadarBackground from './RadarBackground.jsx'
+import { RM, scroller } from '../lib.js'
+
+const PinIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+)
+
+const SatelliteIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="m13 7 3-3 4 4-3 3M7 13l-3 3 4 4 3-3" />
+    <rect x="8" y="8" width="8" height="8" rx="1" transform="rotate(45 12 12)" />
+    <path d="M16 21a5 5 0 0 0 5-5" />
+  </svg>
+)
+
+const LocateIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="7" />
+    <circle cx="12" cy="12" r="2" />
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+  </svg>
+)
 
 // Haversine fallback distance formula (in km)
 function calculateDistanceKm(lat1, lon1, lat2, lon2) {
@@ -52,6 +75,12 @@ function calculateDistanceKm(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return Math.round(R * c * 10) / 10
 }
+
+// Route lines and pin popups can't read CSS variables; matches --jr-orange in jr-tokens.css
+const JR_ORANGE = '#c84b0e'
+
+// Corridor colours live in the data file; its one orange is drawn in the shared orange
+const corridorColor = (color) => (String(color).toLowerCase() === '#e8803f' ? JR_ORANGE : color)
 
 // 100% Free Tile Providers (Zero watermark, zero mandatory key)
 const TILE_PRESETS = {
@@ -72,24 +101,7 @@ const TILE_PRESETS = {
   }
 }
 
-function getTileConfig(theme, customKey) {
-  if (customKey && customKey.startsWith('pk.')) {
-    if (theme === 'satellite') {
-      return {
-        url: `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token=${customKey}`,
-        className: 'leaflet-clean-streets',
-        tileSize: 512,
-        zoomOffset: -1
-      }
-    }
-    return {
-      url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${customKey}`,
-      className: 'leaflet-clean-streets',
-      tileSize: 512,
-      zoomOffset: -1
-    }
-  }
-
+function getTileConfig(theme) {
   return {
     url: TILE_PRESETS[theme]?.url || TILE_PRESETS.dark.url,
     className: TILE_PRESETS[theme]?.className || 'leaflet-dark-tiles',
@@ -150,7 +162,12 @@ export default function JobRadarMap() {
   // Selection
   const [selectedCompany, setSelectedCompany] = useState(RADAR_COMPANIES[0])
   const [selectedCandidate, setSelectedCandidate] = useState(VERIFIED_TALENT_PROFILES[0])
-  const [mapTheme, setMapTheme] = useState('dark')
+  const [siteTheme, setSiteTheme] = useState(() =>
+    document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+  )
+  const [satelliteOn, setSatelliteOn] = useState(false)
+  const baseMapTheme = siteTheme === 'dark' ? 'dark' : 'streets'
+  const mapTheme = satelliteOn ? 'satellite' : baseMapTheme
 
   // Interactive Card Expansion: tracks which card is currently expanded on click
   const [expandedCardId, setExpandedCardId] = useState(RADAR_COMPANIES[0]?.id || null)
@@ -175,9 +192,6 @@ export default function JobRadarMap() {
   const [interviewInviteCandidate, setInterviewInviteCandidate] = useState(null)
   const [interviewInviteSuccess, setInterviewInviteSuccess] = useState(false)
 
-  // Enterprise API key
-  const [customApiKey, setCustomApiKey] = useState(localStorage.getItem('pp_custom_map_key') || '')
-
   // WP2: Sentinel for capsule scroll shadow & search expand state
   const sentinelRef = useRef(null)
   const searchInputRef = useRef(null)
@@ -199,7 +213,62 @@ export default function JobRadarMap() {
     return () => observer.disconnect()
   }, [])
 
+  // Match the map to the site theme, live
+  useEffect(() => {
+    const root = document.documentElement
+    const sync = () => setSiteTheme(root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+    sync()
+    const observer = new MutationObserver(sync)
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => observer.disconnect()
+  }, [])
+
   const mapContainerRef = useRef(null)
+  const recenterRef = useRef(null)
+  const listScrollRef = useRef(null)
+  const cardAnchorRef = useRef(null)
+  const cardRevealRef = useRef(null)
+  const [cardRevealTick, setCardRevealTick] = useState(0)
+
+  const findCard = (id) => listScrollRef.current?.querySelector(`[data-radar-card="${CSS.escape(id)}"]`)
+
+  // Remember where a card sits before it toggles, so a card collapsing above it can't move it
+  const captureCardAnchor = (id) => {
+    const card = findCard(id)
+    cardAnchorRef.current = card ? { id, top: card.getBoundingClientRect().top } : null
+  }
+
+  const requestCardReveal = (id) => {
+    cardRevealRef.current = id
+    setCardRevealTick((n) => n + 1)
+  }
+
+  useLayoutEffect(() => {
+    const anchor = cardAnchorRef.current
+    cardAnchorRef.current = null
+    const list = listScrollRef.current
+    const card = anchor && findCard(anchor.id)
+    if (list && card) list.scrollTop += card.getBoundingClientRect().top - anchor.top
+  }, [expandedCardId, expandedCandidateId])
+
+  // A map pin was clicked: bring its card to the top of the list, below the sticky header
+  useLayoutEffect(() => {
+    if (!cardRevealTick) return
+    const list = listScrollRef.current
+    const card = findCard(cardRevealRef.current)
+    if (!list || !card) return
+    const headerHeight = list.querySelector('.radar-listings-header')?.offsetHeight || 0
+    const listTop = list.getBoundingClientRect().top
+    list.scrollTo({
+      top: list.scrollTop + card.getBoundingClientRect().top - listTop - headerHeight - 6,
+      behavior: RM ? 'auto' : 'smooth'
+    })
+    // On narrow screens the list sits below the map, so the page has to move too
+    if (listTop < 0 || listTop > window.innerHeight * 0.5) {
+      if (scroller.lenis) scroller.lenis.scrollTo(list, { offset: -96 })
+      else list.scrollIntoView({ block: 'start' })
+    }
+  }, [cardRevealTick])
   const mapInstanceRef = useRef(null)
   const tileLayerRef = useRef(null)
   const markersLayerRef = useRef(null)
@@ -339,7 +408,7 @@ export default function JobRadarMap() {
         if (addr.suburb && addr.neighbourhood && addr.suburb !== addr.neighbourhood) {
           return `${addr.suburb}, ${addr.neighbourhood}`
         }
-        return addr.suburb || addr.village || addr.neighbourhood || addr.city_district || addr.residential || addr.road || addr.city || 'Pune'
+        return addr.suburb || addr.village || addr.neighbourhood || addr.city_district || addr.residential || addr.road || addr.city || 'Current location'
       }
     } catch {
       // Fallback to BigDataCloud
@@ -347,13 +416,13 @@ export default function JobRadarMap() {
         const bdc = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
         if (bdc.ok) {
           const bdcData = await bdc.json()
-          return bdcData.locality || bdcData.city || 'Pune'
+          return bdcData.locality || bdcData.city || 'Current location'
         }
       } catch (e) {
         console.warn('Reverse geocoding fallback failed:', e)
       }
     }
-    return 'Pune'
+    return 'Current location'
   }
 
   // ── PURE LIVE DEVICE GPS LOCATION ENGINE ────────────────────────────────
@@ -393,7 +462,7 @@ export default function JobRadarMap() {
         setUserCoords(coords)
         setLocating(false)
         setLocationStatus('locked')
-        setLocationToast(`📍 Live Location Locked: ${locality}`)
+        setLocationToast(`Live Location Locked: ${locality}`)
         setTimeout(() => setLocationToast(null), 3500)
 
         if (mapInstanceRef.current) {
@@ -420,7 +489,7 @@ export default function JobRadarMap() {
               setUserCoords(ipCoords)
               setLocating(false)
               setLocationStatus('fallback')
-              setLocationToast(`🌐 Location Triangulated via IP: ${ipLocality}`)
+              setLocationToast(`Location Triangulated via IP: ${ipLocality}`)
               setTimeout(() => setLocationToast(null), 3500)
               if (mapInstanceRef.current) {
                 mapInstanceRef.current.flyTo([ipCoords.lat, ipCoords.lng], 13, { duration: 0.9 })
@@ -435,13 +504,13 @@ export default function JobRadarMap() {
         setLocating(false)
         setLocationStatus('fallback')
         if (err.code === 1) {
-          setLocationToast('⚠️ Location access denied in browser. Please enable permissions.')
+          setLocationToast('Location access denied in browser. Please enable permissions.')
         } else if (err.code === 2) {
-          setLocationToast('⚠️ Device position unavailable. Check GPS/Wi-Fi.')
+          setLocationToast('Device position unavailable. Check GPS/Wi-Fi.')
         } else if (err.code === 3) {
-          setLocationToast('⚠️ GPS location request timed out. Please try again.')
+          setLocationToast('GPS location request timed out. Please try again.')
         } else {
-          setLocationToast('⚠️ Could not acquire device GPS.')
+          setLocationToast('Could not acquire device GPS.')
         }
         setTimeout(() => setLocationToast(null), 4000)
       },
@@ -452,6 +521,14 @@ export default function JobRadarMap() {
       }
     )
   }, [])
+
+  // Fly to the known position, and fetch a live one if the current origin isn't a live fix
+  const handleRecenter = () => {
+    const map = mapInstanceRef.current
+    if (map) map.flyTo([userCoords.lat, userCoords.lng], Math.max(map.getZoom(), 14), { duration: 0.8 })
+    if (locationStatus !== 'locked' && !locating) handleDetectLocation()
+  }
+  recenterRef.current = handleRecenter
 
   // Auto-detect on first load
   useEffect(() => {
@@ -499,10 +576,10 @@ export default function JobRadarMap() {
           mapInstanceRef.current.removeLayer(transitPolylineRef.current)
         }
         const polyline = L.polyline(cached.roadLatLngs, {
-          color: '#e8803f',
+          color: JR_ORANGE,
           weight: 5,
           className: 'jr-route',
-          opacity: 0.95
+          opacity: 1
         }).addTo(mapInstanceRef.current)
         transitPolylineRef.current = polyline
       }
@@ -541,10 +618,10 @@ export default function JobRadarMap() {
                 mapInstanceRef.current.removeLayer(transitPolylineRef.current)
               }
               const polyline = L.polyline(roadLatLngs, {
-                color: '#e8803f',
+                color: JR_ORANGE,
                 weight: 5,
                 className: 'jr-route',
-                opacity: 0.95
+                opacity: 1
               }).addTo(mapInstanceRef.current)
               transitPolylineRef.current = polyline
             }
@@ -568,10 +645,10 @@ export default function JobRadarMap() {
           [compLat, compLng]
         ]
         const polyline = L.polyline(straightPoints, {
-          color: '#e8803f',
+          color: JR_ORANGE,
           weight: 4,
           className: 'jr-route',
-          opacity: 0.85
+          opacity: 1
         }).addTo(mapInstanceRef.current)
         transitPolylineRef.current = polyline
 
@@ -622,9 +699,25 @@ export default function JobRadarMap() {
         attributionControl: false
       })
 
-      L.control.zoom({ position: 'topright' }).addTo(map)
+      L.control.zoom({ position: 'bottomright' }).addTo(map)
 
-      const currentConfig = getTileConfig(mapTheme, customApiKey)
+      // Recenter sits directly above zoom in the same corner
+      const RecenterControl = L.Control.extend({
+        onAdd() {
+          const bar = L.DomUtil.create('div', 'leaflet-bar leaflet-control jr-recenter-control')
+          const button = L.DomUtil.create('button', 'jr-recenter-btn', bar)
+          button.type = 'button'
+          button.title = 'Recenter on my location'
+          button.setAttribute('aria-label', 'Recenter map on my location')
+          button.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>'
+          L.DomEvent.disableClickPropagation(bar)
+          L.DomEvent.on(button, 'click', () => recenterRef.current?.())
+          return bar
+        }
+      })
+      new RecenterControl({ position: 'bottomright' }).addTo(map)
+
+      const currentConfig = getTileConfig(mapTheme)
       const tileLayer = L.tileLayer(currentConfig.url, {
         maxZoom: 19,
         className: currentConfig.className,
@@ -650,7 +743,7 @@ export default function JobRadarMap() {
 
     // 2. Tile layer theme switch
     if (tileLayerRef.current) {
-      const currentConfig = getTileConfig(mapTheme, customApiKey)
+      const currentConfig = getTileConfig(mapTheme)
       tileLayerRef.current.setUrl(currentConfig.url)
       const container = tileLayerRef.current.getContainer()
       if (container) {
@@ -663,15 +756,15 @@ export default function JobRadarMap() {
     PUNE_SEZ_CORRIDORS.forEach((sez) => {
       const isSelected = selectedSezCorridor === sez.id
       const poly = L.polygon(sez.polygon, {
-        color: isSelected ? '#fff' : sez.color,
+        color: isSelected ? '#fff' : corridorColor(sez.color),
         weight: isSelected ? 3 : 1.5,
-        fillColor: sez.fillColor,
+        fillColor: corridorColor(sez.fillColor),
         fillOpacity: isSelected ? 0.32 : 0.12,
         dashArray: isSelected ? null : '4, 4'
       })
 
       poly.bindTooltip(
-        `<div style="font-family: -apple-system, sans-serif; font-size: 0.76rem; padding: 2px;"><strong>${sez.name}</strong><br/><span style="color: #e8803f;">${sez.subtitle}</span></div>`,
+        `<div style="font-family: -apple-system, sans-serif; font-size: 0.76rem; padding: 2px;"><strong>${sez.name}</strong><br/><span style="color: ${JR_ORANGE};">${sez.subtitle}</span></div>`,
         { sticky: true }
       )
 
@@ -686,22 +779,25 @@ export default function JobRadarMap() {
     // 4. Render Markers
     markersLayer.clearLayers()
 
-    // Commute Origin Pin (Draggable + Animated Ring)
+    // Commute Origin Pin (Draggable)
     const userPinHtml = `
-      <div class="radar-user-map-pin" title="Your Commute Origin (Drag or click map to change)">
-        <div class="user-pin-core"></div>
-        <div class="user-pin-ring"></div>
+      <div class="radar-user-map-pin ${locationStatus === 'fallback' ? 'is-fallback' : ''}" title="Your location (drag to change)">
+        <svg width="28" height="36" viewBox="0 0 28 36" aria-hidden="true">
+          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.6 13 21 13 21s13-11.400 13-21C27 6.8 21.200 1 14 1z" fill="currentColor" stroke="#fff" stroke-width="2"/>
+          <circle cx="14" cy="14" r="5" fill="#fff"/>
+        </svg>
       </div>
     `
     const userIcon = L.divIcon({
       html: userPinHtml,
       className: 'user-marker-container',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+      iconSize: [28, 36],
+      iconAnchor: [14, 36]
     })
     const userMarker = L.marker([userCoords.lat, userCoords.lng], {
       icon: userIcon,
-      draggable: true
+      draggable: true,
+      zIndexOffset: 1000
     }).addTo(markersLayer)
 
     // Visual GPS Accuracy Halo Circle
@@ -717,8 +813,8 @@ export default function JobRadarMap() {
     }
 
     userMarker.bindTooltip(
-      `📍 <strong>${userCoords.name || 'Origin'}</strong><br/><span style="color: #e8803f; font-size: 0.72rem;">Drag pin to reposition origin</span>`,
-      { permanent: false, direction: 'top' }
+      `<strong>${userCoords.name || 'Origin'}</strong><br/><span style="color: ${JR_ORANGE}; font-size: 0.72rem;">${locationStatus === 'fallback' ? 'Not your exact location. ' : ''}Drag pin to reposition origin</span>`,
+      { permanent: false, direction: 'top', offset: [0, -36] }
     )
 
     userMarker.on('dragend', async (e) => {
@@ -734,7 +830,7 @@ export default function JobRadarMap() {
         zoom: 14.5
       })
       setLocationStatus('custom')
-      setLocationToast(`📍 Commute Origin Moved to: ${locality}`)
+      setLocationToast(`Commute Origin Moved to: ${locality}`)
       setTimeout(() => setLocationToast(null), 3000)
     })
 
@@ -747,13 +843,12 @@ export default function JobRadarMap() {
         const isSelected = selectedCompany?.id === comp.id
         const isHighMatch = comp.matchScore >= 90
         const isRemote = comp.workMode === 'Remote'
-        const isSmb = comp.tier === 'smb'
 
         const pinHtml = `
-          <div class="radar-clean-pin ${isSelected ? 'active-pin' : ''} ${isHighMatch ? 'high-match' : ''} ${isRemote ? 'remote-pin' : ''}" style="${isSmb ? 'border-color: #fbbf24;' : ''}">
-            <div class="pin-score" style="${isSmb ? 'color: #fbbf24;' : ''}">${comp.matchScore}%</div>
+          <div class="radar-clean-pin ${isSelected ? 'active-pin' : ''} ${isHighMatch ? 'high-match' : ''} ${isRemote ? 'remote-pin' : ''}" >
+            <div class="pin-score">${comp.matchScore}%</div>
             <div class="pin-initials">${comp.logo}</div>
-            <div class="pin-expanded-label">${isSmb ? '⚡ ' : ''}${comp.name}</div>
+            <div class="pin-expanded-label">${comp.name}</div>
           </div>
         `
 
@@ -769,17 +864,18 @@ export default function JobRadarMap() {
         marker.on('click', () => {
           setSelectedCompany(comp)
           setExpandedCardId(comp.id)
+          requestCardReveal(comp.id)
           map.flyTo([comp.coordinates.lat, comp.coordinates.lng], 14.5, { duration: 0.8 })
         })
 
         const popupHtml = `
           <div style="font-family: -apple-system, sans-serif; min-width: 210px; padding: 2px;">
             <strong style="color: #111; font-size: 0.95rem;">${comp.name}</strong>
-            ${comp.smbFastTrack ? '<div style="color: #d97706; font-size: 0.72rem; font-weight: bold; margin-top: 1px;">⚡ DIRECT CTO FAST-TRACK</div>' : ''}
-            <div style="color: #e8803f; font-weight: bold; font-size: 0.8rem; margin: 3px 0;">${comp.matchScore}% Skill Match</div>
-            <div style="color: #666; font-size: 0.75rem; margin-bottom: 4px;">📍 ${comp.techPark}</div>
-            <div style="color: #0284c7; font-size: 0.72rem; margin-bottom: 6px; font-weight: 500;">⚡ ${comp.transit?.travelTimeMinutes || 20}m commute via ${comp.transit?.corridorName || 'Road'}</div>
-            <a href="${comp.officialUrl}" target="_blank" style="color: #b54610; font-size: 0.75rem; font-weight: 600; text-decoration: none;">View Official Careers Portal ↗</a>
+            ${comp.smbFastTrack ? '<div style="color: ${JR_ORANGE}; font-size: 0.72rem; font-weight: bold; margin-top: 1px;">DIRECT CTO FAST-TRACK</div>' : ''}
+            <div style="color: ${JR_ORANGE}; font-weight: bold; font-size: 0.8rem; margin: 3px 0;">${comp.matchScore}% Skill Match</div>
+            <div style="color: #666; font-size: 0.75rem; margin-bottom: 4px;">${comp.techPark}</div>
+            <div style="color: #0284c7; font-size: 0.72rem; margin-bottom: 6px; font-weight: 500;">${comp.transit?.travelTimeMinutes || 20}m commute via ${comp.transit?.corridorName || 'Road'}</div>
+            <a href="${comp.officialUrl}" target="_blank" style="color: ${JR_ORANGE}; font-size: 0.75rem; font-weight: 600; text-decoration: none;">View Official Careers Portal ↗</a>
           </div>
         `
         marker.bindPopup(popupHtml)
@@ -810,6 +906,7 @@ export default function JobRadarMap() {
         marker.on('click', () => {
           setSelectedCandidate(cand)
           setExpandedCandidateId(cand.id)
+          requestCardReveal(cand.id)
           map.flyTo([cand.coordinates.lat, cand.coordinates.lng], 14, { duration: 0.8 })
         })
 
@@ -825,16 +922,9 @@ export default function JobRadarMap() {
     selectedSezCorridor,
     searchQuery,
     mapTheme,
-    customApiKey,
+    locationStatus,
     extraVerifiedSkills
   ])
-
-  // Save custom enterprise API key
-  const handleSaveApiKey = (key) => {
-    setCustomApiKey(key)
-    localStorage.setItem('pp_custom_map_key', key)
-    setActiveModal(null)
-  }
 
   // Open Proof-Gap Resolution Drawer for unverified skill
   const handleOpenProofGap = (skillName, comp) => {
@@ -912,6 +1002,17 @@ export default function JobRadarMap() {
     }
   }, [roadRouteData.durationMin, selectedCompany?.id])
 
+  // Say so whenever the origin on the map isn't the user's real position
+  const originLabel = userCoords.name?.split('·')[1]?.trim() || userCoords.name?.split('(')[0]?.trim() || 'Origin'
+  const locationNote =
+    locationStatus === 'idle' || locationStatus === 'detecting'
+      ? 'Finding your location...'
+      : locationStatus === 'fallback'
+        ? (userCoords.name?.startsWith('Network IP')
+            ? `Approximate location from your network: ${originLabel}`
+            : `Device location unavailable. Showing ${originLabel}.`)
+        : null
+
   // Count active filter criteria
   const activeFiltersCount = (radiusFilter !== 'all' ? 1 : 0) + (workModeFilter !== 'ALL' ? 1 : 0) + (tierFilter !== 'ALL' ? 1 : 0)
 
@@ -919,8 +1020,8 @@ export default function JobRadarMap() {
   const activeCorridorObj = PUNE_SEZ_CORRIDORS.find((c) => c.id === selectedSezCorridor)
 
   return (
-    <main id="main" className="dash-page radar-page jr-root" data-basemap={mapTheme}>
-      {/* Ambient Live Glow & Particle Constellation Background (shared with Verify aesthetic) */}
+    <main id="main" className="dash-page radar-page jr-root" data-basemap={baseMapTheme}>
+      {/* Flat page background */}
       <RadarBackground />
 
       <div className="w">
@@ -938,9 +1039,6 @@ export default function JobRadarMap() {
               <div className="ios-brand-text">
                 <div className="ios-app-title">
                   <span>{perspective === 'candidate' ? 'JOB RADAR' : 'TALENT RADAR'}</span>
-                  <span className="ios-live-indicator">
-                    <span className="live-dot" /> LIVE
-                  </span>
                 </div>
                 <div className="ios-app-subtitle">
                   {perspective === 'candidate' ? 'Pune Tech Corridors · Metro 3' : 'Recruiter Talent Scout'}
@@ -997,11 +1095,11 @@ export default function JobRadarMap() {
               {/* Origin Trigger */}
               <button
                 type="button"
-                className={`ios-pill-btn ${locationStatus === 'locked' ? 'active-green' : ''}`}
+                className={`ios-pill-btn ${locationStatus === 'locked' ? 'active-green' : locationStatus === 'fallback' ? 'active-amber' : ''}`}
                 onClick={() => setActiveModal('origin')}
-                title="Change Commute Origin or Re-Scan Live GPS"
+                title={locationNote || 'Change Commute Origin or Re-Scan Live GPS'}
               >
-                <span>📍</span>
+                <PinIcon />
                 <span className="pill-text-truncate">{userCoords.name?.split('·')[1]?.trim() || userCoords.name?.split('(')[0]?.trim() || 'Origin'}</span>
               </button>
 
@@ -1012,54 +1110,27 @@ export default function JobRadarMap() {
                 onClick={() => setActiveModal('corridor')}
                 title="Geofence by Pune SEZ Corridor"
               >
-                <span>🗺️</span>
                 <span className="pill-text-truncate">{activeCorridorObj ? activeCorridorObj.name.split(' ')[0] : 'All SEZs'}</span>
-              </button>
-
-              {/* Filters Trigger */}
-              <button
-                type="button"
-                className={`ios-pill-btn ${activeFiltersCount > 0 ? 'active-amber' : ''}`}
-                onClick={() => setActiveModal('filter')}
-                title="Smart Filters"
-              >
-                <span>⚙️</span>
-                <span>Filters</span>
-                {activeFiltersCount > 0 && <span className="pill-badge">{activeFiltersCount}</span>}
               </button>
 
               {/* Re-Detect Live GPS button */}
               <button
                 type="button"
-                className={`ios-pill-btn gps-action-btn ${locating ? 'spinning' : ''}`}
+                className="ios-pill-btn gps-action-btn"
                 onClick={handleDetectLocation}
                 title="Instantly detect your live laptop location via Wi-Fi/GPS triangulation"
               >
-                <span>{locating ? '🛰️' : '🎯'}</span>
+                <LocateIcon />
                 <span className="gps-label">{locating ? 'Triangulating...' : 'My Location'}</span>
               </button>
 
-              {/* Perspective Control: Segmented switch for Admins, locked role indicator for Candidates and Recruiters */}
+              {/* Perspective switch, for admins only */}
               {isAdmin ? (
                 <JrSegmented
                   value={perspective}
                   onChange={handlePerspectiveChange}
                 />
-              ) : (
-                <div
-                  className={`jr-role-pill ${perspective === 'candidate' ? 'candidate' : 'recruiter'}`}
-                  title={
-                    perspective === 'candidate'
-                      ? 'Candidate Job Radar (Locked to Candidate Mode)'
-                      : 'Recruiter Talent Scout (Locked to Recruiter Mode)'
-                  }
-                  role="status"
-                  aria-label={`Active Role Perspective: ${perspective === 'candidate' ? 'Candidate' : 'Recruiter'}`}
-                >
-                  <span className="role-indicator-dot" aria-hidden="true" />
-                  <span>{perspective === 'candidate' ? 'Candidate Radar' : 'Recruiter Scout'}</span>
-                </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -1076,53 +1147,17 @@ export default function JobRadarMap() {
         <div className="radar-grid jr-layout">
           {/* LEFT: LIVE LEAFLET MAP VIEWPORT */}
           <div className="radar-viewport-container jr-map">
-            {/* Top Floating Controls on Map */}
-            <div className="radar-floating-hud-top">
-              <div className="hud-capsule" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <JrThreeHologram size={20} color={0xe8803f} />
-                <span>
-                  {perspective === 'candidate'
-                    ? `${filteredCompanies.length} Verified Tech Openings`
-                    : `${VERIFIED_TALENT_PROFILES.length} Verified Candidate Profiles`}
-                </span>
-              </div>
-
-              {/* Map Theme Switcher */}
-              <div className="hud-theme-picker">
-                <button
-                  type="button"
-                  className={`hud-theme-btn ${mapTheme === 'dark' ? 'active' : ''}`}
-                  onClick={() => setMapTheme('dark')}
-                  title="Dark Tech Basemap"
-                >
-                  🌙 Dark
-                </button>
-                <button
-                  type="button"
-                  className={`hud-theme-btn ${mapTheme === 'streets' ? 'active' : ''}`}
-                  onClick={() => setMapTheme('streets')}
-                  title="Daylight Streets"
-                >
-                  ☀️ Streets
-                </button>
-                <button
-                  type="button"
-                  className={`hud-theme-btn ${mapTheme === 'satellite' ? 'active' : ''}`}
-                  onClick={() => setMapTheme('satellite')}
-                  title="ESRI Satellite Imagery"
-                >
-                  🛰️ Satellite
-                </button>
-                <button
-                  type="button"
-                  className="hud-theme-btn license-btn"
-                  onClick={() => setActiveModal('key')}
-                  title="Configure Enterprise Mapbox or Google License"
-                >
-                  🔑 {customApiKey ? 'License Active ✓' : 'Custom Key'}
-                </button>
-              </div>
-            </div>
+            {/* Basemap follows the site theme; satellite is an on/off choice */}
+            <button
+              type="button"
+              className={`jr-map-satellite ${satelliteOn ? 'active' : ''}`}
+              aria-pressed={satelliteOn}
+              onClick={() => setSatelliteOn((on) => !on)}
+              title="Show satellite imagery"
+            >
+              <SatelliteIcon />
+              <span>Satellite</span>
+            </button>
 
             {/* Leaflet Canvas Element */}
             <div ref={mapContainerRef} className="leaflet-map-element" />
@@ -1132,16 +1167,6 @@ export default function JobRadarMap() {
               <div key={selectedCompany.id} className="jr-cockpit-hud jr-hud-crossfade">
                 {/* 1. Left Section: Waypoint & Destination Identity */}
                 <div className="jr-cockpit-dest">
-                  <div className="jr-cockpit-status-row">
-                    <span className="jr-cockpit-pill">
-                      <span className="jr-cockpit-pulse-dot" aria-hidden="true" />
-                      <span>{roadRouteData.isRoadRoute ? 'OSRM LIVE TELEMETRY' : 'COMMUTE CORRIDOR'}</span>
-                    </span>
-                    <span className="jr-cockpit-corridor-tag">
-                      {selectedCompany.transit?.corridorName || 'Pune Tech Corridor'}
-                    </span>
-                  </div>
-
                   <h4 className="jr-cockpit-name">{selectedCompany.name}</h4>
 
                   <div className="jr-cockpit-subline">
@@ -1183,18 +1208,6 @@ export default function JobRadarMap() {
 
                 {/* 3. Right Section: Multi-Modal Metro Connection & Launch CTA */}
                 <div className="jr-cockpit-actions">
-                  {selectedCompany.transit?.metroLine && (
-                    <div className="jr-cockpit-metro-chip" title="Metro Rail Multi-Modal Link">
-                      <svg className="jr-cockpit-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <rect x="4" y="3" width="16" height="16" rx="2" />
-                        <path d="M4 11h16M12 3v8M8 19l-2 3M16 19l2 3" />
-                        <circle cx="8" cy="15" r="1" fill="currentColor" />
-                        <circle cx="16" cy="15" r="1" fill="currentColor" />
-                      </svg>
-                      <span className="jr-cockpit-metro-text">{selectedCompany.transit.metroLine}</span>
-                    </div>
-                  )}
-
                   <a
                     href={`https://www.google.com/maps/dir/?api=1&origin=${userCoords.lat},${userCoords.lng}&destination=${selectedCompany.coordinates.lat},${selectedCompany.coordinates.lng}&travelmode=driving`}
                     target="_blank"
@@ -1213,7 +1226,7 @@ export default function JobRadarMap() {
           </div>
 
           {/* RIGHT: JOB OPPORTUNITY CARDS OR RECRUITER TALENT CARDS (WP3 List Crossfade) */}
-          <div key={perspective} className="radar-listings-scroll jr-list-crossfade">
+          <div key={perspective} ref={listScrollRef} className="radar-listings-scroll jr-list-crossfade" data-lenis-prevent>
             {/* Header / Expand All Control */}
             <div className="radar-listings-header">
               <span className="listings-count-badge">
@@ -1221,26 +1234,22 @@ export default function JobRadarMap() {
                   ? `${filteredCompanies.length} Verified Roles Mapped`
                   : `${VERIFIED_TALENT_PROFILES.length} Verified Profiles Mapped`}
               </span>
-              <button
-                type="button"
-                className="expand-all-pill-btn"
-                onClick={() => {
-                  if (perspective === 'candidate') {
-                    setExpandedCardId((prev) => (prev ? null : (filteredCompanies[0]?.id || null)))
-                  } else {
-                    setExpandedCandidateId((prev) => (prev ? null : (VERIFIED_TALENT_PROFILES[0]?.id || null)))
-                  }
-                }}
-                title="Toggle detailed card expansion"
-              >
-                {(perspective === 'candidate' ? expandedCardId : expandedCandidateId) ? 'Collapse All' : 'Expand Top Match'}
-              </button>
+              {perspective === 'candidate' && (
+                <button
+                  type="button"
+                  className={`ios-pill-btn ${activeFiltersCount > 0 ? 'active-amber' : ''}`}
+                  onClick={() => setActiveModal('filter')}
+                  title="Smart Filters"
+                >
+                  <span>Filter</span>
+                  {activeFiltersCount > 0 && <span className="pill-badge">{activeFiltersCount}</span>}
+                </button>
+              )}
             </div>
 
             {perspective === 'candidate' ? (
               filteredCompanies.length === 0 ? (
                 <div className="radar-empty-state">
-                  <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🔍</div>
                   <h3>No matches for &ldquo;{searchQuery || 'current filters'}&rdquo;</h3>
                   <p>Try clearing your keyword search query or resetting the commute distance and tier filters.</p>
                   <button
@@ -1267,6 +1276,7 @@ export default function JobRadarMap() {
                     isSelected={selectedCompany?.id === comp.id}
                     isExpanded={expandedCardId === comp.id}
                     onToggleExpand={(c) => {
+                      captureCardAnchor(c.id)
                       setExpandedCardId((prev) => (prev === c.id ? null : c.id))
                     }}
                     onSelect={(c) => {
@@ -1296,9 +1306,11 @@ export default function JobRadarMap() {
                 return (
                   <div
                     key={cand.id}
+                    data-radar-card={cand.id}
                     className={`radar-candidate-card ${isSelected ? 'active' : ''} ${isExpanded ? 'is-expanded' : ''}`}
                     onClick={() => {
                       setSelectedCandidate(cand)
+                      captureCardAnchor(cand.id)
                       setExpandedCandidateId((prev) => (prev === cand.id ? null : cand.id))
                       if (mapInstanceRef.current && cand.coordinates) {
                         mapInstanceRef.current.flyTo([cand.coordinates.lat, cand.coordinates.lng], 14, { duration: 0.8 })
@@ -1341,7 +1353,7 @@ export default function JobRadarMap() {
 
                     <div className="card-expandable-content">
                       <div className="cand-depth">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#e8803f', verticalAlign: 'middle', marginRight: '6px' }} aria-hidden="true">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: JR_ORANGE, verticalAlign: 'middle', marginRight: '6px' }} aria-hidden="true">
                           <line x1="6" y1="3" x2="6" y2="15" />
                           <circle cx="18" cy="6" r="3" />
                           <circle cx="6" cy="18" r="3" />
@@ -1409,7 +1421,7 @@ export default function JobRadarMap() {
             onClick={handleDetectLocation}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '1.25rem' }}>{locating ? '🛰️' : '🎯'}</span>
+              <LocateIcon size={18} />
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: 600, color: '#fff' }}>
                   {locating ? 'Triangulating Live Coordinates...' : 'Detect My Exact Live Location'}
@@ -1452,7 +1464,7 @@ export default function JobRadarMap() {
         </div>
 
         <div className="ios-modal-footer-tip">
-          💡 <strong>Pro-Tip:</strong> You can also drag the glowing blue pin directly on the map or click any street to set a custom origin point!
+          <strong>Pro-Tip:</strong> Drag your location pin on the map to set a custom origin, or use the recenter button on the map to return to your live location.
         </div>
       </JrSheet>
 
@@ -1477,7 +1489,7 @@ export default function JobRadarMap() {
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '1.2rem' }}>🌐</span>
+              <span className="corridor-color-dot" style={{ background: '#9c958f' }} />
               <div>
                 <div style={{ fontWeight: 600, color: '#fff' }}>All Pune SEZs & Tech Hubs</div>
                 <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>Includes all tech parks, SMBs, and remote opportunities</div>
@@ -1502,7 +1514,7 @@ export default function JobRadarMap() {
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span className="corridor-color-dot" style={{ background: sez.color }} />
+                  <span className="corridor-color-dot" style={{ background: corridorColor(sez.color) }} />
                   <div>
                     <div style={{ fontWeight: 600, color: '#fff' }}>{sez.name}</div>
                     <div style={{ fontSize: '0.72rem', color: '#9c958f' }}>{sez.subtitle}</div>
@@ -1543,8 +1555,8 @@ export default function JobRadarMap() {
           <div className="filter-options-grid three-col">
             {[
               { key: 'ALL', label: 'All Tiers' },
-              { key: 'smb', label: '⚡ Fast-Track SMBs' },
-              { key: 'enterprise', label: '🏢 Enterprise MNC' }
+              { key: 'smb', label: 'Fast-Track SMBs' },
+              { key: 'enterprise', label: 'Enterprise MNC' }
             ].map((t) => (
               <button
                 key={t.key}
@@ -1608,48 +1620,6 @@ export default function JobRadarMap() {
         </div>
       </JrSheet>
 
-      {/* MODAL 4: ENTERPRISE MAP LICENSE */}
-      <JrSheet
-        open={activeModal === 'key'}
-        onClose={() => setActiveModal(null)}
-        badge="ENTERPRISE GEOLOCATION"
-        title="Map License Token"
-      >
-        <p className="ios-modal-desc">
-          ProofPass by default operates on OpenStreetMap and ESRI tiles with zero watermarks. If your enterprise maintains a dedicated Mapbox style or token, insert it below.
-        </p>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label className="filter-group-label">Mapbox Access Token (pk.*):</label>
-          <input
-            type="text"
-            value={customApiKey}
-            onChange={(e) => setCustomApiKey(e.target.value.trim())}
-            placeholder="pk.eyJ1IjoibXktdGVhbSIsImEiOiJjb..."
-            className="ios-text-input"
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            type="button"
-            className="radar-action-btn primary"
-            style={{ flex: 1 }}
-            onClick={() => handleSaveApiKey(customApiKey)}
-          >
-            Save & Apply License
-          </button>
-          {customApiKey && (
-            <button
-              type="button"
-              className="radar-secondary-link"
-              onClick={() => handleSaveApiKey('')}
-            >
-              Reset to Free OSM
-            </button>
-          )}
-        </div>
-      </JrSheet>
 
       {/* ── 4. CRYPTOGRAPHIC PROOF-GAP RESOLUTION DRAWER (WP5 Desktop Drawer) ── */}
       <JrSheet
@@ -1667,7 +1637,7 @@ export default function JobRadarMap() {
 
             <div className="proofgap-commit-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span style={{ color: '#e8803f', fontWeight: 600 }}>{proofGapItem.evidence.repoName}</span>
+                <span style={{ color: JR_ORANGE, fontWeight: 600 }}>{proofGapItem.evidence.repoName}</span>
                 <span style={{ color: '#9c958f' }}>{proofGapItem.evidence.date}</span>
               </div>
               <div style={{ color: '#fff', fontWeight: 600, marginBottom: '6px' }}>
@@ -1725,7 +1695,7 @@ export default function JobRadarMap() {
               </div>
               <div className="summary-row">
                 <span>Passport Seal:</span>
-                <span style={{ color: '#e8803f', fontFamily: 'monospace' }}>SHA-256 VALIDATED ✓ (Demo Seal)</span>
+                <span style={{ color: JR_ORANGE, fontFamily: 'monospace' }}>SHA-256 VALIDATED ✓ (Demo Seal)</span>
               </div>
             </div>
 
@@ -1794,10 +1764,10 @@ export default function JobRadarMap() {
                 <button
                   type="button"
                   className="radar-action-btn primary"
-                  style={{ flex: 1, background: 'linear-gradient(180deg, #0284c7, #0369a1)', borderColor: '#0284c7' }}
+                  style={{ flex: 1, background: '#0369a1', borderColor: '#0369a1' }}
                   onClick={confirmDispatchInterview}
                 >
-                  ⚡ Send Immediate Interview Invite
+                  Send Immediate Interview Invite
                 </button>
                 <button
                   type="button"
